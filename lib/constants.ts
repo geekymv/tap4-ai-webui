@@ -302,7 +302,7 @@ export const STARTUP_LIST = [
   },
   {
     DA: 38,
-    Website: 'Tap4 AI',
+    Website: 'GetAITools',
     URL: 'https://getaitools.app/submit',
     Price: 'Free',
     Tag: 'AI',

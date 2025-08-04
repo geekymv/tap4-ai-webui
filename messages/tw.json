@@ -64,10 +64,6 @@
     "10": {
       "question": "AI工具的使用權限是什麼？",
       "answer": "GetAITools工具目錄只是AI工具的目錄。AI工具的使用權限基於AI工具的網站。"
-    },
-    "11": {
-      "question": "GetAITools目錄的Web界面是開源的嗎？",
-      "answer": "是的，我們將在github（https://github.com/6677-ai/tap4-ai-webui）上開源GetAITools目錄的Web界面。請給我們點贊。"
     }
   },
   "FooterNavigation": {
