@@ -158,24 +158,24 @@
     "title": "Discover The Best AI Tools 2025",
     "subTitle": "Get your favorite AI tools in GetAITools Tools Directory. AI tools list are updated daily by GPT-4o."
   },
-      "Metadata": {
-            "home": {
+  "Metadata": {
+    "home": {
         "title": "Get your best AI Tools | Best GetAITools Tools Directory",
-        "description": "GetAITools Directory is a tool provides free AI Tools Directory. Get your favorite AI tools with GetAITools Directory, GetAITools Directory aims to collect all the AI tools and provide the best for users.",
+        "description": "GetAITools Directory is a free platform for developers and users to discover top AI tools. Easily find, compare, and use AI tools to boost productivity and creativity.",
         "keywords": "GetAITools Directory"
     },
-          "ai": {
+    "ai": {
         "titleSubfix": "GetAITools Directory"
     },
-          "explore": {
-        "title": "Best AI Tools Explore 2025 | Best GetAITools Tools Directory",
-              "titlePrefix": "GetAITools Directory Explore",
-              "titleSuffix": "GetAITools Directory",
-              "description": "GetAITools Directory is a tool provides free AI Tools Directory. Get your favorite AI tools with GetAITools Directory, GetAITools Directory aims to collect all the AI tools and provide the best for users.",
-              "keywords": "GetAITools Directory"
-      },
-          "submit": {
-        "title": "Submit your AI tool and get Get Traffic | GetAITools Directory"
+    "explore": {
+      "title": "Best AI Tools Explore 2025 | Best GetAITools Tools Directory",
+      "titlePrefix": "GetAITools Directory Explore",
+      "titleSuffix": "GetAITools Directory",
+      "description": "GetAITools Directory is a free platform for developers and users to discover top AI tools. Easily find, compare, and use AI tools to boost productivity and creativity.",
+      "keywords": "GetAITools Directory"
+    },
+    "submit": {
+    "title": "Submit your AI tool and get Get Traffic | GetAITools Directory"
     }
   }
 }
