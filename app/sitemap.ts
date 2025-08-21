@@ -1,9 +1,10 @@
 import { type MetadataRoute } from 'next';
+import { createClient } from '@/db/supabase/client';
 import { locales } from '@/i18n';
 
 import { BASE_URL } from '@/lib/env';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sitemapRoutes: MetadataRoute.Sitemap = [
     {
       url: '', // home
@@ -30,6 +31,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
   ];
+  const supabase = createClient();
+  const { data: categoryList } = await supabase.from('navigation_category').select();
+
+  categoryList?.forEach((category) => {
+    sitemapRoutes.push({
+      url: `category/${category.name}`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.8,
+    });
+  });
 
   const sitemapData = sitemapRoutes.flatMap((route) =>
     locales.map((locale) => {
