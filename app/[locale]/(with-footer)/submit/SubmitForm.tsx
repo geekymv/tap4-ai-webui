@@ -18,6 +18,7 @@ import Spinning from '@/components/Spinning';
 const FormSchema = z.object({
   website: z.string(),
   url: z.string().url(),
+  email: z.string().email(),
 });
 
 export default function SubmitForm({ className }: { className?: string }) {
@@ -31,6 +32,7 @@ export default function SubmitForm({ className }: { className?: string }) {
     defaultValues: {
       website: '',
       url: '',
+      email: '',
     },
   });
 
@@ -41,7 +43,7 @@ export default function SubmitForm({ className }: { className?: string }) {
       const { error } = await supabase.from('submit').insert({
         name: formData.website,
         url: formData.url,
-        // email: ''
+        email: formData.email,
       });
       if (error) {
         errMsg = error.message;
@@ -92,6 +94,23 @@ export default function SubmitForm({ className }: { className?: string }) {
                 <FormControl>
                   <Input
                     placeholder={FORM_PLACEHOLDER}
+                    className='input-border-pink h-[42px] w-full rounded-[8px] border-[0.5px] bg-dark-bg p-5'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='email'
+            render={({ field }) => (
+              <FormItem className='space-y-1'>
+                <FormLabel>{t('email')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder='example@email.com'
                     className='input-border-pink h-[42px] w-full rounded-[8px] border-[0.5px] bg-dark-bg p-5'
                     {...field}
                   />
