@@ -33,10 +33,15 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Catan Board Generator',
+      href: 'https://catanboardgenerator.app/',
+    },
+    {
       title: 'Funny Coloring Pages',
       href: 'https://funny-coloring-pages.online/',
     },
     {
+      title: 'NPE4J',
       href: 'https://npe4j.com/',
     },
 
