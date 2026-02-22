@@ -33,6 +33,14 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Crossclimb Answer Today',
+      href: 'https://pinpointanswer.io',
+    },
+    {
+      title: 'Pinpoint Answer Today',
+      href: 'https://pinpointanswer.io',
+    },
+    {
       title: 'Catan Board Generator',
       href: 'https://catanboardgenerator.app/',
     },
