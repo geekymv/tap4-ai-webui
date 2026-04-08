@@ -33,8 +33,12 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Happy Horse AI',
+      href: 'https://happyaihorse.com',
+    },
+    {
       title: 'Crossclimb Answer Today',
-      href: 'https://pinpointanswer.io',
+      href: 'https://crossclimbanswer.io',
     },
     {
       title: 'Pinpoint Answer Today',
