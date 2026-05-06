@@ -33,6 +33,10 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Kick a Lucky Block',
+      href: 'https://kickaluckyblock.io',
+    },
+    {
       title: 'Happy Horse AI',
       href: 'https://happyaihorse.com',
     },
