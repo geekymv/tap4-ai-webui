@@ -33,6 +33,10 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'VV Ultimatum Wiki',
+      href: 'https://vvultimatumwiki.com',
+    },
+    {
       title: 'Kick a Lucky Block',
       href: 'https://kickaluckyblock.io',
     },
