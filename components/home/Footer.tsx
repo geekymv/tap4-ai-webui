@@ -33,6 +33,10 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Evomon Roblox Wiki',
+      href: 'https://evomonroblox.wiki/',
+    },
+    {
       title: 'VV Ultimatum Wiki',
       href: 'https://vvultimatumwiki.com',
     },
