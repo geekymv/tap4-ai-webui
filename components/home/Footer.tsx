@@ -33,6 +33,10 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Gakuran Roblox Wiki',
+      href: 'https://gakuranroblox.com/',
+    },
+    {
       title: 'Evomon Roblox Wiki',
       href: 'https://evomonroblox.wiki/',
     },
