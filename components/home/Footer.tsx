@@ -33,6 +33,10 @@ export default function Footer() {
 
   const SupportLinks = [
     {
+      title: 'Muse Image',
+      href: 'https://museimg.com',
+    },
+    {
       title: 'Gakuran Roblox Wiki',
       href: 'https://gakuranroblox.com/',
     },
