@@ -112,7 +112,6 @@ NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 
 # Built-in crawler and discovery
-SUPABASE_SERVICE_ROLE_KEY="server-only-service-role-key"
 CRON_SECRET="cron-auth-key"
 REVIEW_AUTH_KEY="review-auth-key"
 GITHUB_TOKEN="optional-github-token"
@@ -188,7 +187,7 @@ CONTACT_US_EMAIL="contact@email.com"
 1. **Node Version**: Must use Node >=20.0.0 (check `.nvmrc`)
 2. **Package Manager**: Use pnpm exclusively (yarn/npm disabled in `package.json`)
 3. **Database**: Supabase required for full functionality
-4. **Crawler**: Run `db/supabase/create_crawler.sql` and configure server-only keys before enabling Cron
+4. **Crawler**: Run `db/supabase/create_crawler.sql` and configure the Cron/review authentication keys before enabling Cron
 5. **Internationalization**: All routes are locale-prefixed, middleware handles redirects
 6. **SEO**: Dynamic sitemaps, robots.txt, and meta tags are implemented
 

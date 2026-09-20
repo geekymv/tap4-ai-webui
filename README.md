@@ -58,7 +58,9 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
 queue. A separate hourly processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
 extracts metadata and content, and leaves results in `review` state. Execute `db/supabase/create_crawler.sql` before
-enabling the cron jobs.
+enabling the cron jobs. To match the existing project, crawler database calls reuse the public anon client, so this SQL
+grants anon access to the candidate queue and crawler RPCs. Keep the HTTP Cron and review secrets enabled; use a
+server-only Supabase key instead if the queue must not be accessible through the public Data API.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
@@ -71,7 +73,7 @@ enabling the cron jobs.
 
 ### Deploy on Vercel **(Don't forget to set the environment variables)**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
 
 Environment params as below: **Note: All key is in need, and the value including
 NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY write with the correct value**
@@ -91,8 +93,6 @@ NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Server-only Supabase key used by discovery, crawling, and review APIs
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-
 # Vercel Cron authentication
 CRON_SECRET="keyxxxx"
 
@@ -171,7 +171,6 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Server-only Supabase key and crawler settings
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""

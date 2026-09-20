@@ -1,6 +1,6 @@
 import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
-import createServerClient from '@/db/supabase/server';
+import { createClient } from '@/db/supabase/client';
 
 import reviewCandidate, { ReviewAction } from '@/lib/crawler/review';
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params: { id } }: { params: { id:
       return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 });
     }
 
-    const result = await reviewCandidate(createServerClient(), candidateId, body.action, body.categoryName);
+    const result = await reviewCandidate(createClient(), candidateId, body.action, body.categoryName);
     if (result.status === 'published') {
       revalidatePath('/');
       revalidatePath('/explore');

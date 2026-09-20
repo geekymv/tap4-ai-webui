@@ -57,7 +57,8 @@
 
 每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每小时消费任务以 2 条受控并
 发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
-`db/supabase/create_crawler.sql`。
+`db/supabase/create_crawler.sql`。为保持与原项目一致，抓取器复用公开 anon 客户端，因此 SQL 会向 anon 开放候选队列和抓取
+RPC；必须继续启用 Cron/审核接口密钥。如果候选队列不能通过公开 Data API 访问，应改用仅服务端 Supabase 密钥。
 
 ### 创建Supabase数据库及执行sql脚本
 
@@ -67,7 +68,7 @@
 
 ### 在Vercel上部署 **（别忘了设置环境变量）**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
 
 环境变量参考如下: **注：环境变量key必须添加，必须正确的key包括
 NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY，其他可填写随意字符串**
@@ -86,7 +87,6 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Built-in crawler
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
@@ -159,7 +159,6 @@ NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Built-in crawler
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""

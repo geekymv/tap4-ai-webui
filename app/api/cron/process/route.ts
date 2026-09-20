@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import createServerClient from '@/db/supabase/server';
+import { createClient } from '@/db/supabase/client';
 
 import processCandidate from '@/lib/crawler/process';
 import runBatchWithinBudget from '@/lib/crawler/run-batch';
@@ -14,7 +14,7 @@ async function processQueue(req: NextRequest) {
   if (unauthorized) return unauthorized;
   try {
     const startedAt = Date.now();
-    const supabase = createServerClient();
+    const supabase = createClient();
     const { data: categories, error: categoryError } = await supabase
       .from('navigation_category')
       .select('name,title')

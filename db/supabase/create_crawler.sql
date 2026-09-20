@@ -31,7 +31,16 @@ create index if not exists crawl_candidate_source_item_idx
   where source_item_id is not null;
 
 alter table public.crawl_candidate enable row level security;
-revoke all on table public.crawl_candidate from anon, authenticated;
+grant select, insert, update on table public.crawl_candidate to anon, authenticated;
+grant usage, select on sequence public.crawl_candidate_id_seq to anon, authenticated;
+
+drop policy if exists "Public crawler access" on public.crawl_candidate;
+create policy "Public crawler access"
+  on public.crawl_candidate
+  for all
+  to anon, authenticated
+  using (true)
+  with check (true);
 
 create or replace function public.claim_crawl_candidates(batch_size integer default 5)
 returns setof public.crawl_candidate
@@ -62,8 +71,8 @@ as $$
   returning candidate.*;
 $$;
 
-revoke all on function public.claim_crawl_candidates(integer) from public, anon, authenticated;
-grant execute on function public.claim_crawl_candidates(integer) to service_role;
+revoke all on function public.claim_crawl_candidates(integer) from public;
+grant execute on function public.claim_crawl_candidates(integer) to anon, authenticated;
 
 create unique index if not exists web_navigation_url_unique_idx
   on public.web_navigation (url)
@@ -76,7 +85,7 @@ create or replace function public.review_crawl_candidate(
 )
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare
@@ -152,8 +161,8 @@ begin
 end;
 $$;
 
-revoke all on function public.review_crawl_candidate(bigint, text, text) from public, anon, authenticated;
-grant execute on function public.review_crawl_candidate(bigint, text, text) to service_role;
+revoke all on function public.review_crawl_candidate(bigint, text, text) from public;
+grant execute on function public.review_crawl_candidate(bigint, text, text) to anon, authenticated;
 
 alter table public.submit enable row level security;
 
