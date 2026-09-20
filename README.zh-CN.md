@@ -53,21 +53,21 @@
 
 ## 部署说明
 
-### 部署Tap4 AI Crawler
+### 配置内置抓取器
 
-具体见[Tap4 AI Crawler](https://github.com/6677-ai/tap4-ai-crawler) 部署完成后，可以使用平台提供的域名或者自定义域名，作
-为生成AI工具网页内容的API接口(示例：https://{crawler_domain}/site/crawl, {crawler_domain}为你的具体域名)，**需要配置到
-env环境变量CRAWLER_API**中
+每日定时任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列，再由当前项目遵守
+robots.txt 抓取少量候选、提取 SEO 信息及正文，并置为 `review` 等待审核。启用前请执行
+`db/supabase/create_crawler.sql`。
 
 ### 创建Supabase数据库及执行sql脚本
 
 - 注册[Supabase](https://supabase.com/), 创建数据库，记录SUPABASE_URL和SUPABASE_ANON_KEY, 用于后面vercel环境变量部署
-- Supabase后台执行项目中db目录下的sql文件：create_table.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
+- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
   据可以参考sql文件，也可以直接上Supabase后台编辑**
 
 ### 在Vercel上部署 **（别忘了设置环境变量）**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CRAWLER_API,CRAWLER_API_KEY,CRON_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
 
 环境变量参考如下: **注：环境变量key必须添加，必须正确的key包括
 NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY，其他可填写随意字符串**
@@ -85,11 +85,13 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 # Supabase database URL and key
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Web crawler API interface
-CRAWLER_API="https://crawler_domain/site/crawl_async"
-
-# Crawler interface verification key
-CRAWLER_API_KEY="xxxx"
+# Built-in crawler
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+CRON_SECRET="keyxxxx"
+REVIEW_AUTH_KEY="review-keyxxxx"
+GITHUB_TOKEN=""
+DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
+CRAWL_BATCH_SIZE="5"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
@@ -100,6 +102,9 @@ SUBMIT_AUTH_KEY="xxxx"
 ```
 
 **注：此版本采用了vercel的定时任务用来自动读取自动提交的网站并生成网站结果**
+
+抓取结果不会自动发布。审核通过时调用 `POST /api/crawl/review/{id}`，携带
+`Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
 
 - 免费版vercel：仅支持每天调用1次，可以手动调用{doamin}/api/cron, 采用POST, Header: {"Authorization":"Bearer auth_key"},
   其中auth_key为env环境变量自定义配置
@@ -124,7 +129,7 @@ git clone https://github.com/6677-ai/tap4-ai-webui.git
 ### 创建Supabase数据库及执行sql脚本
 
 - 注册[Supabase](https://supabase.com/), 创建数据库，记录SUPABASE_URL和SUPABASE_ANON_KEY, 用于后面vercel环境变量部署
-- Supabase后台执行项目中db目录下的sql文件：create_table.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
+- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
   据可以参考sql文件，也可以直接上Supabase后台编辑**
 
 #### （3）设置环境变量
@@ -150,11 +155,13 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Web crawler API interface
-CRAWLER_API="https://crawler_domain/site/crawl_async"
-
-# Crawler interface verification key
-CRAWLER_API_KEY="xxxx"
+# Built-in crawler
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+CRON_SECRET="keyxxxx"
+REVIEW_AUTH_KEY="review-keyxxxx"
+GITHUB_TOKEN=""
+DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
+CRAWL_BATCH_SIZE="5"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"

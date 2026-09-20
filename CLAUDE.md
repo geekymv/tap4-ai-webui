@@ -101,9 +101,13 @@ NEXT_PUBLIC_SITE_URL="https://your-domain.com"
 NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 
-# Crawler integration
-CRAWLER_API="https://crawler-domain/site/crawl_async"
-CRAWLER_API_KEY="crawler-auth-key"
+# Built-in crawler and discovery
+SUPABASE_SERVICE_ROLE_KEY="server-only-service-role-key"
+CRON_SECRET="cron-auth-key"
+REVIEW_AUTH_KEY="review-auth-key"
+GITHUB_TOKEN="optional-github-token"
+DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
+CRAWL_BATCH_SIZE="5"
 
 # Authentication keys
 CRON_AUTH_KEY="cron-auth-key"
@@ -139,14 +143,14 @@ CONTACT_US_EMAIL="contact@email.com"
 
 ### Common Database Tasks
 1. **Initialize database**: Run SQL scripts in `/db/` on Supabase
-2. **Add AI tools**: Use crawler API or manually insert into `web_navigation` table
+2. **Add AI tools**: Review built-in crawler candidates or manually insert into `web_navigation`
 3. **Update content**: Modify `web_navigation` table with proper markdown formatting
 4. **Manage categories**: Use `category` table for tool categorization
 
-### Crawler Integration
-- Connected to Tap4 AI Crawler project
-- Automatic submission and collection via `/api/cron` endpoint
-- Manual fallback: Query `submit` table and create content in `web_navigation`
+### Built-in crawler
+- `/api/cron` discovers candidates and crawls a bounded batch inside this project
+- Sources are user submissions, Show HN, and GitHub topics
+- `/api/crawl/review/[id]` approves or rejects reviewed candidates
 
 ## Deployment
 
@@ -165,7 +169,7 @@ CONTACT_US_EMAIL="contact@email.com"
 1. **Node Version**: Must use Node >=20.0.0 (check `.nvmrc`)
 2. **Package Manager**: Use pnpm exclusively (yarn/npm disabled in `package.json`)
 3. **Database**: Supabase required for full functionality
-4. **Crawler**: Optional but enables automatic content collection
+4. **Crawler**: Run `db/supabase/create_crawler.sql` and configure server-only keys before enabling Cron
 5. **Internationalization**: All routes are locale-prefixed, middleware handles redirects
 6. **SEO**: Dynamic sitemaps, robots.txt, and meta tags are implemented
 

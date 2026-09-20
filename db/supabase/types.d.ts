@@ -4,6 +4,75 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      crawl_candidate: {
+        Row: {
+          attempt_count: number;
+          canonical_url: string;
+          category_name: string | null;
+          created_at: string;
+          description: string | null;
+          detail: string | null;
+          discovered_at: string;
+          domain: string;
+          error_message: string | null;
+          id: number;
+          image_url: string | null;
+          locked_at: string | null;
+          next_retry_at: string | null;
+          source: string;
+          source_item_id: string | null;
+          source_url: string | null;
+          status: string;
+          title: string | null;
+          updated_at: string;
+          url: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          canonical_url: string;
+          category_name?: string | null;
+          created_at?: string;
+          description?: string | null;
+          detail?: string | null;
+          discovered_at?: string;
+          domain: string;
+          error_message?: string | null;
+          id?: number;
+          image_url?: string | null;
+          locked_at?: string | null;
+          next_retry_at?: string | null;
+          source: string;
+          source_item_id?: string | null;
+          source_url?: string | null;
+          status?: string;
+          title?: string | null;
+          updated_at?: string;
+          url: string;
+        };
+        Update: {
+          attempt_count?: number;
+          canonical_url?: string;
+          category_name?: string | null;
+          created_at?: string;
+          description?: string | null;
+          detail?: string | null;
+          discovered_at?: string;
+          domain?: string;
+          error_message?: string | null;
+          id?: number;
+          image_url?: string | null;
+          locked_at?: string | null;
+          next_retry_at?: string | null;
+          source?: string;
+          source_item_id?: string | null;
+          source_url?: string | null;
+          status?: string;
+          title?: string | null;
+          updated_at?: string;
+          url?: string;
+        };
+        Relationships: [];
+      };
       navigation_category: {
         Row: {
           create_by: number;
@@ -117,7 +186,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      claim_crawl_candidates: {
+        Args: { batch_size?: number };
+        Returns: Database['public']['Tables']['crawl_candidate']['Row'][];
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -129,6 +201,7 @@ export type Database = {
 };
 
 export type NavigationCategory = Database['public']['Tables']['navigation_category']['Row'];
+export type CrawlCandidate = Database['public']['Tables']['crawl_candidate']['Row'];
 export type Submit = Database['public']['Tables']['submit']['Row'];
 export type WebNavigation = Database['public']['Tables']['web_navigation']['Row'];
 
