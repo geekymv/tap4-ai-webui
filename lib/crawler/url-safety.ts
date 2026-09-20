@@ -1,6 +1,8 @@
 import { resolve4, resolve6 } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
+export type DnsResolver = (hostname: string) => Promise<string[]>;
+
 function isPrivateIpv4(address: string) {
   const octets = address.split('.').map(Number);
   if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet))) return true;
@@ -34,7 +36,12 @@ export function isPrivateAddress(address: string) {
   return true;
 }
 
-export async function assertSafeUrl(input: string) {
+const systemResolver: DnsResolver = async (hostname) => {
+  const [ipv4, ipv6] = await Promise.all([resolve4(hostname).catch(() => []), resolve6(hostname).catch(() => [])]);
+  return [...ipv4, ...ipv6];
+};
+
+export async function resolveSafeTarget(input: string, resolver: DnsResolver = systemResolver) {
   const url = new URL(input);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported URL protocol');
   const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
@@ -43,10 +50,27 @@ export async function assertSafeUrl(input: string) {
   }
   if (isIP(hostname)) {
     if (isPrivateAddress(hostname)) throw new Error('Private IP addresses are not allowed');
-    return;
+    return { address: hostname, family: isIP(hostname) };
   }
-  const [ipv4, ipv6] = await Promise.all([resolve4(hostname).catch(() => []), resolve6(hostname).catch(() => [])]);
-  const addresses = [...ipv4, ...ipv6];
+  const addresses = await resolver(hostname);
   if (!addresses.length) throw new Error('Hostname did not resolve');
   if (addresses.some(isPrivateAddress)) throw new Error('Hostname resolves to a private IP address');
+  return { address: addresses[0], family: isIP(addresses[0]) };
+}
+
+type PinnedTarget = Awaited<ReturnType<typeof resolveSafeTarget>>;
+type LookupCallback = (
+  error: Error | null,
+  address: string | Array<{ address: string; family: number }>,
+  family?: number,
+) => void;
+
+export function createPinnedLookup(target: PinnedTarget) {
+  return (_hostname: string, options: { all?: boolean }, callback: LookupCallback) => {
+    if (options?.all) {
+      callback(null, [{ address: target.address, family: target.family }]);
+      return;
+    }
+    callback(null, target.address, target.family);
+  };
 }

@@ -1,59 +1,83 @@
+import { request as httpRequest, IncomingMessage } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import robotsParser from 'robots-parser';
 
 import { extractWebsite } from './extract';
 import { normalizeUrl } from './normalize';
-import { assertSafeUrl } from './url-safety';
+import { createPinnedLookup, resolveSafeTarget } from './url-safety';
 
 const USER_AGENT = 'GetAIToolsBot/1.0 (+https://getaitools.app/)';
 const MAX_BYTES = 2 * 1024 * 1024;
 
-async function readText(response: Response) {
-  const contentLength = Number(response.headers.get('content-length') || 0);
-  if (contentLength > MAX_BYTES) throw new Error('Response exceeds the 2 MB limit');
-  if (!response.body) return '';
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  let done = false;
-  while (!done) {
-    // Streaming is intentionally sequential so the byte limit can stop the response early.
-    // eslint-disable-next-line no-await-in-loop
-    const chunk = await reader.read();
-    done = chunk.done;
-    if (chunk.done) break;
-    const { value } = chunk;
-    total += value.byteLength;
-    if (total > MAX_BYTES) {
-      reader.cancel().catch(() => undefined);
-      throw new Error('Response exceeds the 2 MB limit');
+function readText(response: IncomingMessage) {
+  return new Promise<string>((resolve, reject) => {
+    const contentLength = Number(response.headers['content-length'] || 0);
+    if (contentLength > MAX_BYTES) {
+      response.destroy();
+      reject(new Error('Response exceeds the 2 MB limit'));
+      return;
     }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  chunks.forEach((chunk) => {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
+    const chunks: Buffer[] = [];
+    let total = 0;
+    response.on('data', (value: Buffer | string) => {
+      const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      total += chunk.byteLength;
+      if (total > MAX_BYTES) {
+        response.destroy(new Error('Response exceeds the 2 MB limit'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    response.once('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    response.once('error', reject);
   });
-  return new TextDecoder().decode(bytes);
 }
 
 async function fetchText(input: string, accept: string, redirectCount = 0): Promise<{ text: string; url: string }> {
   const url = normalizeUrl(input);
-  await assertSafeUrl(url);
-  const response = await fetch(url, {
-    headers: { Accept: accept, 'User-Agent': USER_AGENT },
-    redirect: 'manual',
-    signal: AbortSignal.timeout(10000),
+  const parsedUrl = new URL(url);
+  const target = await resolveSafeTarget(url);
+  const transport = parsedUrl.protocol === 'https:' ? httpsRequest : httpRequest;
+  const timeoutMs = Number(process.env.CRAWL_REQUEST_TIMEOUT_MS) || 7000;
+
+  return new Promise((resolve, reject) => {
+    const request = transport(
+      parsedUrl,
+      {
+        headers: { Accept: accept, 'User-Agent': USER_AGENT },
+        lookup: createPinnedLookup(target),
+        servername: parsedUrl.hostname,
+      },
+      (response) => {
+        const status = response.statusCode || 0;
+        if (status >= 300 && status < 400) {
+          const { location } = response.headers;
+          response.resume();
+          if (!location) {
+            reject(new Error('Redirect response is missing Location'));
+            return;
+          }
+          if (redirectCount >= 5) {
+            reject(new Error('Too many redirects'));
+            return;
+          }
+          fetchText(new URL(location, url).toString(), accept, redirectCount + 1).then(resolve, reject);
+          return;
+        }
+        if (status < 200 || status >= 300) {
+          response.resume();
+          reject(new Error(`Website returned HTTP ${status}`));
+          return;
+        }
+        readText(response)
+          .then((text) => resolve({ text, url }))
+          .catch(reject);
+      },
+    );
+    request.setTimeout(timeoutMs, () => request.destroy(new Error(`Website request timed out after ${timeoutMs}ms`)));
+    request.once('error', reject);
+    request.end();
   });
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get('location');
-    if (!location) throw new Error('Redirect response is missing Location');
-    if (redirectCount >= 5) throw new Error('Too many redirects');
-    return fetchText(new URL(location, url).toString(), accept, redirectCount + 1);
-  }
-  if (!response.ok) throw new Error(`Website returned HTTP ${response.status}`);
-  return { text: await readText(response), url };
 }
 
 async function assertRobotsAllowed(pageUrl: string) {
@@ -70,7 +94,6 @@ async function assertRobotsAllowed(pageUrl: string) {
 
 export default async function crawlWebsite(input: string) {
   const url = normalizeUrl(input);
-  await assertSafeUrl(url);
   await assertRobotsAllowed(url);
   const response = await fetchText(url, 'text/html,application/xhtml+xml');
   return extractWebsite(response.text, response.url);

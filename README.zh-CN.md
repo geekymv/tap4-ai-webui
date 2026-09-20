@@ -55,15 +55,15 @@
 
 ### 配置内置抓取器
 
-每日定时任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列，再由当前项目遵守
-robots.txt 抓取少量候选、提取 SEO 信息及正文，并置为 `review` 等待审核。启用前请执行
+每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每小时消费任务以 2 条受控并
+发、45 秒时间预算抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
 `db/supabase/create_crawler.sql`。
 
 ### 创建Supabase数据库及执行sql脚本
 
 - 注册[Supabase](https://supabase.com/), 创建数据库，记录SUPABASE_URL和SUPABASE_ANON_KEY, 用于后面vercel环境变量部署
-- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
-  据可以参考sql文件，也可以直接上Supabase后台编辑**
+- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql,
+  insert_data.sql **注：如需修改数据可以参考sql文件，也可以直接上Supabase后台编辑**
 
 ### 在Vercel上部署 **（别忘了设置环境变量）**
 
@@ -92,6 +92,8 @@ REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
 DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
@@ -103,12 +105,13 @@ SUBMIT_AUTH_KEY="xxxx"
 
 **注：此版本采用了vercel的定时任务用来自动读取自动提交的网站并生成网站结果**
 
-抓取结果不会自动发布。审核通过时调用 `POST /api/crawl/review/{id}`，携带
-`Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
+抓取结果不会自动发布。审核通过时调用 `POST /api/crawl/review/{id}`，携带 `Authorization: Bearer $REVIEW_AUTH_KEY` 和
+JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
 
-- 免费版vercel：仅支持每天调用1次，可以手动调用{doamin}/api/cron, 采用POST, Header: {"Authorization":"Bearer auth_key"},
-  其中auth_key为env环境变量自定义配置
-- Pro版vercel：可以参照此文档配置[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)
+- 当前配置包含每日发现和每小时消费两个 Cron，需要部署套餐支持对应频率。仅支持每日一次的套餐需降低调度频率，或手动调用
+  `/api/cron/process`。
+- 手动调用 `/api/cron/discover` 或 `/api/cron/process` 时采用 POST，并携带 `Authorization: Bearer $CRON_SECRET`。
+- 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
 
 ## 本地运行
 
@@ -129,8 +132,8 @@ git clone https://github.com/6677-ai/tap4-ai-webui.git
 ### 创建Supabase数据库及执行sql脚本
 
 - 注册[Supabase](https://supabase.com/), 创建数据库，记录SUPABASE_URL和SUPABASE_ANON_KEY, 用于后面vercel环境变量部署
-- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql, insert_data.sql **注：如需修改数
-  据可以参考sql文件，也可以直接上Supabase后台编辑**
+- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql,
+  insert_data.sql **注：如需修改数据可以参考sql文件，也可以直接上Supabase后台编辑**
 
 #### （3）设置环境变量
 
@@ -162,6 +165,8 @@ REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
 DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"

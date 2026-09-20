@@ -65,6 +65,96 @@ $$;
 revoke all on function public.claim_crawl_candidates(integer) from public, anon, authenticated;
 grant execute on function public.claim_crawl_candidates(integer) to service_role;
 
+create unique index if not exists web_navigation_url_unique_idx
+  on public.web_navigation (url)
+  where url is not null;
+
+create or replace function public.review_crawl_candidate(
+  candidate_id bigint,
+  review_action text,
+  category_override text default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  candidate public.crawl_candidate%rowtype;
+  published_name text;
+  selected_category text;
+begin
+  if review_action not in ('approve', 'reject') then
+    raise exception using errcode = '22023', message = 'invalid_review_action';
+  end if;
+
+  select * into candidate
+  from public.crawl_candidate
+  where id = candidate_id and status = 'review'
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'candidate_not_reviewable';
+  end if;
+
+  if review_action = 'reject' then
+    update public.crawl_candidate
+    set status = 'rejected', updated_at = now()
+    where id = candidate.id;
+
+    if candidate.source = 'submission' then
+      update public.submit set status = 2 where id = candidate.source_item_id::bigint;
+    end if;
+
+    return jsonb_build_object('status', 'rejected');
+  end if;
+
+  if candidate.title is null or candidate.description is null or candidate.detail is null then
+    raise exception using errcode = '23514', message = 'candidate_content_incomplete';
+  end if;
+
+  selected_category := coalesce(category_override, candidate.category_name, 'other');
+  published_name := regexp_replace(lower(regexp_replace(candidate.domain, '^www\.', '')), '[^a-z0-9]+', '-', 'g');
+  published_name := trim(both '-' from published_name) || '-' || candidate.id::text;
+
+  insert into public.web_navigation (
+    name, title, content, detail, url, image_url, thumbnail_url,
+    collection_time, tag_name, category_name
+  ) values (
+    published_name, candidate.title, candidate.description, candidate.detail,
+    candidate.canonical_url, candidate.image_url, candidate.image_url,
+    now(), selected_category, selected_category
+  )
+  on conflict (url) where url is not null do update set
+    title = excluded.title,
+    content = excluded.content,
+    detail = excluded.detail,
+    image_url = excluded.image_url,
+    thumbnail_url = excluded.thumbnail_url,
+    collection_time = excluded.collection_time,
+    tag_name = excluded.tag_name,
+    category_name = excluded.category_name
+  returning name into published_name;
+
+  update public.crawl_candidate
+  set status = 'published', updated_at = now()
+  where id = candidate.id;
+
+  if candidate.source = 'submission' then
+    update public.submit set status = 1 where id = candidate.source_item_id::bigint;
+  end if;
+
+  return jsonb_build_object(
+    'status', 'published',
+    'name', published_name,
+    'categoryName', selected_category
+  );
+end;
+$$;
+
+revoke all on function public.review_crawl_candidate(bigint, text, text) from public, anon, authenticated;
+grant execute on function public.review_crawl_candidate(bigint, text, text) to service_role;
+
 alter table public.submit enable row level security;
 
 drop policy if exists "Public can submit pending websites" on public.submit;

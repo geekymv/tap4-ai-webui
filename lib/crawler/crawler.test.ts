@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import classifyWebsite from './classify';
 import { extractWebsite } from './extract';
 import { normalizeUrl } from './normalize';
-import { isPrivateAddress } from './url-safety';
+import { createPinnedLookup, isPrivateAddress, resolveSafeTarget } from './url-safety';
 
 describe('normalizeUrl', () => {
   it('removes fragments and tracking parameters', () => {
@@ -25,6 +25,27 @@ describe('URL safety', () => {
     expect(isPrivateAddress('169.254.169.254')).toBe(true);
     expect(isPrivateAddress('::1')).toBe(true);
     expect(isPrivateAddress('8.8.8.8')).toBe(false);
+  });
+
+  it('pins the validated address instead of resolving again at connect time', async () => {
+    let dnsAnswer = '93.184.216.34';
+    let resolverCalls = 0;
+    const target = await resolveSafeTarget('https://example.com', async () => {
+      resolverCalls += 1;
+      return [dnsAnswer];
+    });
+    dnsAnswer = '127.0.0.1';
+
+    const connectedAddress = await new Promise<string>((resolve, reject) => {
+      createPinnedLookup(target)('example.com', { all: false }, (error, address) => {
+        if (error) reject(error);
+        else resolve(String(address));
+      });
+    });
+
+    expect(resolverCalls).toBe(1);
+    expect(connectedAddress).toBe('93.184.216.34');
+    expect(dnsAnswer).toBe('127.0.0.1');
   });
 });
 

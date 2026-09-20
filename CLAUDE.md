@@ -4,15 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **Get AI Tools** - an open-source AI Tools Directory built with Next.js 14 (App Router). It's an AI navigation and discovery platform that allows users to discover, submit, and explore AI tools. The project features multi-language support, SEO optimization, and connects to a crawler system for automatic content collection.
+This is **Get AI Tools** - an open-source AI Tools Directory built with Next.js 14 (App Router). It's an AI navigation
+and discovery platform that allows users to discover, submit, and explore AI tools. The project features multi-language
+support, SEO optimization, and connects to a crawler system for automatic content collection.
 
 ## Development Commands
 
 ### Package Manager
+
 - **Primary**: pnpm (>=8.0.0) - use `pnpm` for all commands
 - **Node**: >=20.0.0 (specified in `.nvmrc`)
 
 ### Common Development Tasks
+
 ```bash
 # Install dependencies
 pnpm i
@@ -37,6 +41,7 @@ pnpm prettier
 ```
 
 ### Code Quality Tools
+
 - **ESLint**: Airbnb config with TypeScript support
 - **Prettier**: With import sorting and Tailwind CSS plugin
 - **Husky**: Pre-commit hooks for lint-staged
@@ -44,6 +49,7 @@ pnpm prettier
 ## Architecture
 
 ### Core Structure
+
 ```
 app/[locale]/          # Internationalized routes with dynamic locale
 ├── (with-footer)/     # Route groups for layout organization
@@ -69,6 +75,7 @@ messages/             # Internationalization JSON files (9 languages)
 ```
 
 ### Key Technical Stack
+
 - **Framework**: Next.js 14 with App Router (React Server Components)
 - **UI**: shadcn/ui + Tailwind CSS
 - **Database**: Supabase (PostgreSQL)
@@ -79,12 +86,14 @@ messages/             # Internationalization JSON files (9 languages)
 - **Theming**: next-themes
 
 ### Internationalization Architecture
+
 - Uses `[locale]` dynamic segment in App Router (e.g., `/en`, `/zh-CN`)
 - Middleware (`/middlewares/`) handles locale detection and routing
 - Translation files in `/messages/` directory (9 languages)
 - SEO optimized with locale-specific sitemaps
 
 ### Database Integration
+
 - **Supabase**: Serverless PostgreSQL with Row Level Security
 - **Tables**: `web_navigation` (AI tools), `category` (categories), `submit` (user submissions)
 - **SQL Scripts**: Located in `/db/` for database initialization
@@ -93,6 +102,7 @@ messages/             # Internationalization JSON files (9 languages)
 ## Environment Variables
 
 Required environment variables (see `.env.example`):
+
 ```bash
 # Site configuration
 NEXT_PUBLIC_SITE_URL="https://your-domain.com"
@@ -108,6 +118,8 @@ REVIEW_AUTH_KEY="review-auth-key"
 GITHUB_TOKEN="optional-github-token"
 DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Authentication keys
 CRON_AUTH_KEY="cron-auth-key"
@@ -122,11 +134,13 @@ CONTACT_US_EMAIL="contact@email.com"
 ## Code Style Guidelines
 
 ### ESLint Configuration
+
 - Extends: `next/core-web-vitals`, `prettier`, `airbnb`, `airbnb-typescript`
 - JSX quotes: Single quotes preferred (`jsx-quotes: ["error", "prefer-single"]`)
 - React in JSX scope: Disabled (Next.js doesn't require React import)
 
 ### Prettier Configuration
+
 - Single quotes for JS/JSX/TS
 - 120 character print width
 - Import sorting with `@ianvs/prettier-plugin-sort-imports`
@@ -134,6 +148,7 @@ CONTACT_US_EMAIL="contact@email.com"
 - Import order: React → Next.js → Built-ins → Third-party → Internal
 
 ### Component Patterns
+
 - Use shadcn/ui components from `/components/ui/` as base
 - Class name merging: Use `cn()` utility from `lib/utils.ts`
 - Server Components: Default to React Server Components where possible
@@ -142,24 +157,28 @@ CONTACT_US_EMAIL="contact@email.com"
 ## Database Operations
 
 ### Common Database Tasks
+
 1. **Initialize database**: Run SQL scripts in `/db/` on Supabase
 2. **Add AI tools**: Review built-in crawler candidates or manually insert into `web_navigation`
 3. **Update content**: Modify `web_navigation` table with proper markdown formatting
 4. **Manage categories**: Use `category` table for tool categorization
 
 ### Built-in crawler
-- `/api/cron` discovers candidates and crawls a bounded batch inside this project
+
+- `/api/cron/discover` discovers candidates; `/api/cron/process` consumes bounded waves within a time budget
 - Sources are user submissions, Show HN, and GitHub topics
 - `/api/crawl/review/[id]` approves or rejects reviewed candidates
 
 ## Deployment
 
 ### Vercel Deployment
+
 - Ready for Vercel deployment with environment variables
 - Cron jobs: Configured for automatic content updates
-- Free tier: One cron execution per day, manual trigger via `/api/cron`
+- Plans limited to one daily cron need a reduced schedule or manual `/api/cron/process` calls
 
 ### Build Considerations
+
 - Internationalization requires locale-specific builds
 - Sitemap generation: Dynamic with locale support
 - Image optimization: Next.js Image component with remote patterns configured

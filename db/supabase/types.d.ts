@@ -190,6 +190,10 @@ export type Database = {
         Args: { batch_size?: number };
         Returns: Database['public']['Tables']['crawl_candidate']['Row'][];
       };
+      review_crawl_candidate: {
+        Args: { candidate_id: number; review_action: string; category_override?: string | null };
+        Returns: Json;
+      };
     };
     Enums: {
       [_ in never]: never;

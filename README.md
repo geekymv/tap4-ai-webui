@@ -55,16 +55,17 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 
 ### Configure the built-in crawler
 
-The daily cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate queue.
-It fetches a bounded batch locally, observes robots.txt, extracts metadata and content, and leaves results in `review`
-state. Execute `db/supabase/create_crawler.sql` before enabling the cron.
+The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
+queue. A separate hourly processor fetches controlled two-item waves within a 45-second budget, observes robots.txt,
+extracts metadata and content, and leaves results in `review` state. Execute `db/supabase/create_crawler.sql` before
+enabling the cron jobs.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
 - Register on [Supabase](https://supabase.com/), create a database, and record the SUPABASE_URL and SUPABASE_ANON_KEY
   for later Vercel environment variable deployment.
-- Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql,
-  create_crawler.sql, insert_category_data.sql, insert_data.sql.
+- Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql, create_crawler.sql,
+  insert_category_data.sql, insert_data.sql.
 
 **Note: If you need to modify the data, you can refer to the SQL files or directly edit them on the Supabase backend.**
 
@@ -102,6 +103,8 @@ REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
 DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
@@ -114,13 +117,15 @@ SUBMIT_AUTH_KEY="xxxx"
 **Note: This version uses Vercel's scheduled tasks to automatically read and submit websites and generate website
 results.**
 
-Crawler results are not published automatically. Approve a reviewed candidate with `POST /api/crawl/review/{id}`,
-an `Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use
-`{"action":"reject"}` to reject it.
+Crawler results are not published automatically. Approve a reviewed candidate with `POST /api/crawl/review/{id}`, an
+`Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
+reject it.
 
-- Free version of Vercel: Supports only one call per day, you can manually call {domain}/api/cron, using POST, Header:
-  {"Authorization":"Bearer auth_key"}, where auth_key is a custom configured environment variable.
-- Pro version of Vercel: You can refer to this document to configure
+- The checked-in schedule uses two cron jobs (daily discovery and hourly processing), which requires a Vercel plan that
+  supports this frequency. On plans limited to one daily job, trigger `/api/cron/process` manually or reduce the
+  schedule before deploying.
+- Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or `/api/cron/process`.
+- Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
 
 ## Running Locally
@@ -172,6 +177,8 @@ REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
 DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
