@@ -56,7 +56,7 @@
 ### 配置内置抓取器
 
 每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每小时消费任务以 2 条受控并
-发、45 秒时间预算抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
+发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
 `db/supabase/create_crawler.sql`。
 
 ### 创建Supabase数据库及执行sql脚本

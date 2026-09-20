@@ -56,7 +56,7 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 ### Configure the built-in crawler
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
-queue. A separate hourly processor fetches controlled two-item waves within a 45-second budget, observes robots.txt,
+queue. A separate hourly processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
 extracts metadata and content, and leaves results in `review` state. Execute `db/supabase/create_crawler.sql` before
 enabling the cron jobs.
 

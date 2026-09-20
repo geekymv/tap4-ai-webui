@@ -2,15 +2,18 @@ import { CrawlCandidate, Database } from '@/db/supabase/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 import classifyWebsite from './classify';
-import crawlWebsite from './fetch-page';
+import crawlWebsite, { CrawlDeadline } from './fetch-page';
+
+type ProcessOptions = CrawlDeadline & { crawl?: typeof crawlWebsite };
 
 export default async function processCandidate(
   client: SupabaseClient<Database>,
   candidate: CrawlCandidate,
   categories: Array<{ name: string; title: string | null }>,
+  options: ProcessOptions,
 ) {
   try {
-    const website = await crawlWebsite(candidate.url);
+    const website = await (options.crawl || crawlWebsite)(candidate.url, options);
     const categoryName = classifyWebsite(website.title, website.description, categories);
     const { error } = await client
       .from('crawl_candidate')
@@ -36,7 +39,7 @@ export default async function processCandidate(
     const nextRetryAt = retry
       ? new Date(Date.now() + 2 ** candidate.attempt_count * 15 * 60 * 1000).toISOString()
       : null;
-    await client
+    const { error: updateError } = await client
       .from('crawl_candidate')
       .update({
         error_message: message,
@@ -46,6 +49,7 @@ export default async function processCandidate(
         updated_at: new Date().toISOString(),
       })
       .eq('id', candidate.id);
+    if (updateError) throw new Error(`Unable to release candidate ${candidate.id}: ${updateError.message}`);
     return { error: message, id: candidate.id, status: retry ? ('retry' as const) : ('failed' as const) };
   }
 }

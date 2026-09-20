@@ -30,10 +30,12 @@ async function processQueue(req: NextRequest) {
         return data || [];
       },
       concurrency,
-      deadline: startedAt + 45000,
+      // Stop network work at 42s, leaving 18s before Vercel termination to release claimed rows.
+      deadline: startedAt + 42000,
       maxItems,
       minimumWindowMs: 16000,
-      process: (candidate) => processCandidate(supabase, candidate, categories || []),
+      process: (candidate, signal) =>
+        processCandidate(supabase, candidate, categories || [], { deadline: startedAt + 42000, signal }),
     });
     return NextResponse.json({ elapsedMs: Date.now() - startedAt, processed });
   } catch (error) {
