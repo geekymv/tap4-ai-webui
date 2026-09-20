@@ -31,13 +31,30 @@ create index if not exists crawl_candidate_source_item_idx
   where source_item_id is not null;
 
 alter table public.crawl_candidate enable row level security;
+revoke all on table public.crawl_candidate from public, anon, authenticated;
 grant select, insert, update on table public.crawl_candidate to anon, authenticated;
 grant usage, select on sequence public.crawl_candidate_id_seq to anon, authenticated;
 
 drop policy if exists "Public crawler access" on public.crawl_candidate;
-create policy "Public crawler access"
+drop policy if exists "Public can read crawler candidates" on public.crawl_candidate;
+drop policy if exists "Public can insert crawler candidates" on public.crawl_candidate;
+drop policy if exists "Public can update crawler candidates" on public.crawl_candidate;
+
+create policy "Public can read crawler candidates"
   on public.crawl_candidate
-  for all
+  for select
+  to anon, authenticated
+  using (true);
+
+create policy "Public can insert crawler candidates"
+  on public.crawl_candidate
+  for insert
+  to anon, authenticated
+  with check (true);
+
+create policy "Public can update crawler candidates"
+  on public.crawl_candidate
+  for update
   to anon, authenticated
   using (true)
   with check (true);

@@ -61,6 +61,8 @@ extracts metadata and content, and leaves results in `review` state. Execute `db
 enabling the cron jobs. To match the existing project, crawler database calls reuse the public anon client, so this SQL
 grants anon access to the candidate queue and crawler RPCs. Keep the HTTP Cron and review secrets enabled; use a
 server-only Supabase key instead if the queue must not be accessible through the public Data API.
+After applying the schema, run `db/supabase/test_crawler_permissions.sql` as the database owner to verify that anon can
+select, insert, and update candidates but cannot delete them; the test rolls back its fixture.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 

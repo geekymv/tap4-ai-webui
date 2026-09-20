@@ -59,6 +59,8 @@
 发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
 `db/supabase/create_crawler.sql`。为保持与原项目一致，抓取器复用公开 anon 客户端，因此 SQL 会向 anon 开放候选队列和抓取
 RPC；必须继续启用 Cron/审核接口密钥。如果候选队列不能通过公开 Data API 访问，应改用仅服务端 Supabase 密钥。
+应用表结构后，以数据库所有者执行 `db/supabase/test_crawler_permissions.sql`，可验证 anon 能查询、新增和更新候选，但不能删除；
+测试数据会在事务结束时回滚。
 
 ### 创建Supabase数据库及执行sql脚本
 
