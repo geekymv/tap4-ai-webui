@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/db/supabase/client';
 
+import createCrawlerStore from '@/lib/crawler/store';
 import authorizeCron from '@/lib/cron/auth';
 import runDiscovery from '@/lib/discovery';
 
@@ -12,7 +12,7 @@ async function discover(req: NextRequest) {
   const unauthorized = authorizeCron(req);
   if (unauthorized) return unauthorized;
   try {
-    return NextResponse.json(await runDiscovery(createClient()));
+    return NextResponse.json(await runDiscovery(createCrawlerStore()));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown discovery error' },

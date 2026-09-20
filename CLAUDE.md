@@ -110,6 +110,7 @@ NEXT_PUBLIC_SITE_URL="https://your-domain.com"
 # Supabase database
 NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 
 # Built-in crawler and discovery
 CRON_SECRET="cron-auth-key"
@@ -187,7 +188,7 @@ CONTACT_US_EMAIL="contact@email.com"
 1. **Node Version**: Must use Node >=20.0.0 (check `.nvmrc`)
 2. **Package Manager**: Use pnpm exclusively (yarn/npm disabled in `package.json`)
 3. **Database**: Supabase required for full functionality
-4. **Crawler**: Run `db/supabase/create_crawler.sql` and configure the Cron/review authentication keys before enabling Cron
+4. **Crawler**: Run `db/postgres/create_crawler.sql`; configure `DATABASE_URL` plus Cron/review keys before enabling Cron
 5. **Internationalization**: All routes are locale-prefixed, middleware handles redirects
 6. **SEO**: Dynamic sitemaps, robots.txt, and meta tags are implemented
 

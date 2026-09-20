@@ -57,19 +57,16 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
 queue. A separate hourly processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
-extracts metadata and content, and leaves results in `review` state. Execute `db/supabase/create_crawler.sql` before
-enabling the cron jobs. To match the existing project, crawler database calls reuse the public anon client, so this SQL
-grants anon access to the candidate queue and crawler RPCs. Keep the HTTP Cron and review secrets enabled; use a
-server-only Supabase key instead if the queue must not be accessible through the public Data API.
-After applying the schema, run `db/supabase/test_crawler_permissions.sql` as the database owner to verify that anon can
-select, insert, and update candidates but cannot delete them; the test rolls back its fixture.
+extracts metadata and content, and leaves results in `review` state. Execute `db/postgres/create_crawler.sql` before
+enabling the cron jobs. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL transactions; it
+does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
 - Register on [Supabase](https://supabase.com/), create a database, and record the SUPABASE_URL and SUPABASE_ANON_KEY
   for later Vercel environment variable deployment.
 - Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql, create_crawler.sql,
-  insert_category_data.sql, insert_data.sql.
+  insert_category_data.sql, insert_data.sql, then run `db/postgres/create_crawler.sql` with a PostgreSQL client.
 
 **Note: If you need to modify the data, you can refer to the SQL files or directly edit them on the Supabase backend.**
 
@@ -94,7 +91,9 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Server-only Supabase key used by discovery, crawling, and review APIs
+# Server-only standard PostgreSQL connection used by the crawler
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
+
 # Vercel Cron authentication
 CRON_SECRET="keyxxxx"
 
@@ -150,7 +149,7 @@ git clone https://github.com/6677-ai/tap4-ai-webui.git
 
 Register on Supabase, create a database, and record the SUPABASE_URL and SUPABASE_ANON_KEY for later Vercel environment
 variable deployment. Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql,
-create_crawler.sql, insert_category_data.sql, insert_data.sql.
+insert_category_data.sql, insert_data.sql, then run `db/postgres/create_crawler.sql` with a PostgreSQL client.
 
 **Note: If you need to modify the data, you can refer to the SQL files or directly edit them on the Supabase backend.**
 
@@ -172,7 +171,8 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 # Supabase database URL and key
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Server-only Supabase key and crawler settings
+# Server-only standard PostgreSQL connection and crawler settings
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""

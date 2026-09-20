@@ -31,6 +31,7 @@ const localTarget = async () => ({ address: '127.0.0.1', family: 4 });
 describe('absolute crawler deadline', () => {
   it('destroys a response that keeps dripping data before the inactivity timeout', async () => {
     const port = await listen((_request, response) => {
+      response.on('error', () => undefined);
       response.writeHead(200, { 'content-type': 'text/plain' });
       const interval = setInterval(() => response.write('.'), 10);
       response.on('close', () => clearInterval(interval));
@@ -48,6 +49,7 @@ describe('absolute crawler deadline', () => {
 
   it('shares one deadline across the complete redirect chain', async () => {
     const port = await listen((request, response) => {
+      response.on('error', () => undefined);
       const hop = Number(new URL(request.url || '/', 'http://redirect.test').searchParams.get('hop') || 0);
       setTimeout(() => {
         if (hop < 5) {

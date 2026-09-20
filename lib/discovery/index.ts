@@ -1,22 +1,13 @@
-import { Database } from '@/db/supabase/types';
-import { SupabaseClient } from '@supabase/supabase-js';
-
 import { getDomain, normalizeUrl } from '@/lib/crawler/normalize';
+import { CrawlerStore } from '@/lib/crawler/store';
 
 import discoverFromGitHub from './github';
 import discoverFromHackerNews from './hacker-news';
 import { DiscoveredCandidate } from './types';
 
-async function discoverFromSubmissions(client: SupabaseClient<Database>): Promise<DiscoveredCandidate[]> {
-  const { data, error } = await client
-    .from('submit')
-    .select('id,url')
-    .eq('status', 0)
-    .order('is_feature', { ascending: false })
-    .order('created_at', { ascending: true })
-    .limit(50);
-  if (error) throw new Error(error.message);
-  return (data || [])
+async function discoverFromSubmissions(store: CrawlerStore): Promise<DiscoveredCandidate[]> {
+  const data = await store.listPendingSubmissions();
+  return data
     .filter((item): item is typeof item & { url: string } => Boolean(item.url))
     .map((item) => ({
       source: 'submission',
@@ -26,9 +17,9 @@ async function discoverFromSubmissions(client: SupabaseClient<Database>): Promis
     }));
 }
 
-export default async function runDiscovery(client: SupabaseClient<Database>) {
+export default async function runDiscovery(store: CrawlerStore) {
   const settled = await Promise.allSettled([
-    discoverFromSubmissions(client),
+    discoverFromSubmissions(store),
     discoverFromHackerNews(),
     discoverFromGitHub(),
   ]);
@@ -54,11 +45,7 @@ export default async function runDiscovery(client: SupabaseClient<Database>) {
     }
   });
   if (rows.length) {
-    const { error } = await client.from('crawl_candidate').upsert(rows, {
-      ignoreDuplicates: true,
-      onConflict: 'canonical_url',
-    });
-    if (error) throw new Error(error.message);
+    await store.upsertCandidates(rows);
   }
   return { discovered: rows.length, errors };
 }

@@ -57,16 +57,14 @@
 
 每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每小时消费任务以 2 条受控并
 发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
-`db/supabase/create_crawler.sql`。为保持与原项目一致，抓取器复用公开 anon 客户端，因此 SQL 会向 anon 开放候选队列和抓取
-RPC；必须继续启用 Cron/审核接口密钥。如果候选队列不能通过公开 Data API 访问，应改用仅服务端 Supabase 密钥。
-应用表结构后，以数据库所有者执行 `db/supabase/test_crawler_permissions.sql`，可验证 anon 能查询、新增和更新候选，但不能删除；
-测试数据会在事务结束时回滚。
+`db/postgres/create_crawler.sql`。抓取器仅通过服务端 `DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、
+RLS、Data API 或数据库 RPC 函数。
 
 ### 创建Supabase数据库及执行sql脚本
 
 - 注册[Supabase](https://supabase.com/), 创建数据库，记录SUPABASE_URL和SUPABASE_ANON_KEY, 用于后面vercel环境变量部署
-- Supabase后台执行项目中db目录下的sql文件：create_table.sql, create_crawler.sql, insert_category_data.sql,
-  insert_data.sql **注：如需修改数据可以参考sql文件，也可以直接上Supabase后台编辑**
+- 数据库执行 `db/supabase/create_table.sql`、`insert_category_data.sql`、`insert_data.sql`，再用 PostgreSQL 客户端执行
+  `db/postgres/create_crawler.sql`。**注：如需修改数据可以参考 SQL 文件，也可以直接在数据库后台编辑。**
 
 ### 在Vercel上部署 **（别忘了设置环境变量）**
 
@@ -89,6 +87,7 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Built-in crawler
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""
@@ -161,6 +160,7 @@ NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
 # Built-in crawler
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 CRON_SECRET="keyxxxx"
 REVIEW_AUTH_KEY="review-keyxxxx"
 GITHUB_TOKEN=""

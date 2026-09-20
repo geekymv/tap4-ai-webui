@@ -1,9 +1,8 @@
-import { CrawlCandidate, Database } from '@/db/supabase/types';
-import { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import processCandidate from './process';
 import runBatchWithinBudget from './run-batch';
+import { CrawlCandidate, CrawlerStore } from './store';
 
 describe('runBatchWithinBudget', () => {
   it('uses controlled waves and does not claim work without enough time remaining', async () => {
@@ -33,16 +32,12 @@ describe('runBatchWithinBudget', () => {
 
   it('aborts in-flight work at the absolute deadline and lets it release claimed jobs', async () => {
     const updates: Array<Record<string, unknown>> = [];
-    const client = {
-      from: () => ({
-        update: (values: Record<string, unknown>) => ({
-          eq: async () => {
-            updates.push(values);
-            return { error: null };
-          },
-        }),
-      }),
-    } as unknown as SupabaseClient<Database>;
+    const store = {
+      markCandidateFailed: async (_candidate: CrawlCandidate, message: string) => {
+        updates.push({ error_message: message, locked_at: null, status: 'retry' });
+        return 'retry' as const;
+      },
+    } as CrawlerStore;
     const candidate = {
       attempt_count: 1,
       id: 'candidate-1',
@@ -57,7 +52,7 @@ describe('runBatchWithinBudget', () => {
       maxItems: 1,
       minimumWindowMs: 0,
       process: (item, signal) =>
-        processCandidate(client, item, [], {
+        processCandidate(store, item, [], {
           deadline: startedAt + 30,
           signal,
           crawl: async (_url, options) =>

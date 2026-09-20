@@ -1,13 +1,11 @@
-import { CrawlCandidate, Database } from '@/db/supabase/types';
-import { SupabaseClient } from '@supabase/supabase-js';
-
 import classifyWebsite from './classify';
 import crawlWebsite, { CrawlDeadline } from './fetch-page';
+import { CrawlCandidate, CrawlerStore } from './store';
 
 type ProcessOptions = CrawlDeadline & { crawl?: typeof crawlWebsite };
 
 export default async function processCandidate(
-  client: SupabaseClient<Database>,
+  store: CrawlerStore,
   candidate: CrawlCandidate,
   categories: Array<{ name: string; title: string | null }>,
   options: ProcessOptions,
@@ -15,41 +13,18 @@ export default async function processCandidate(
   try {
     const website = await (options.crawl || crawlWebsite)(candidate.url, options);
     const categoryName = classifyWebsite(website.title, website.description, categories);
-    const { error } = await client
-      .from('crawl_candidate')
-      .update({
-        canonical_url: website.canonicalUrl,
-        category_name: categoryName,
-        description: website.description,
-        detail: website.detail,
-        error_message: null,
-        image_url: website.imageUrl,
-        locked_at: null,
-        next_retry_at: null,
-        status: 'review',
-        title: website.title,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', candidate.id);
-    if (error) throw new Error(error.message);
+    await store.markCandidateReview(candidate.id, {
+      canonicalUrl: website.canonicalUrl,
+      categoryName,
+      description: website.description,
+      detail: website.detail,
+      imageUrl: website.imageUrl,
+      title: website.title,
+    });
     return { id: candidate.id, status: 'review' as const };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Unknown crawler error';
-    const retry = candidate.attempt_count < 3;
-    const nextRetryAt = retry
-      ? new Date(Date.now() + 2 ** candidate.attempt_count * 15 * 60 * 1000).toISOString()
-      : null;
-    const { error: updateError } = await client
-      .from('crawl_candidate')
-      .update({
-        error_message: message,
-        locked_at: null,
-        next_retry_at: nextRetryAt,
-        status: retry ? 'retry' : 'failed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', candidate.id);
-    if (updateError) throw new Error(`Unable to release candidate ${candidate.id}: ${updateError.message}`);
-    return { error: message, id: candidate.id, status: retry ? ('retry' as const) : ('failed' as const) };
+    const status = await store.markCandidateFailed(candidate, message);
+    return { error: message, id: candidate.id, status };
   }
 }
