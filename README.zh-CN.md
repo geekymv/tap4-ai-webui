@@ -55,7 +55,7 @@
 
 ### 配置内置抓取器
 
-每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每小时消费任务以 2 条受控并
+每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每日消费任务以 2 条受控并
 发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
 `db/postgres/create_crawler.sql`。抓取器仅通过服务端 `DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、
 RLS、Data API 或数据库 RPC 函数。
@@ -109,8 +109,8 @@ SUBMIT_AUTH_KEY="xxxx"
 抓取结果不会自动发布。审核通过时调用 `POST /api/crawl/review/{id}`，携带 `Authorization: Bearer $REVIEW_AUTH_KEY` 和
 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
 
-- 当前配置包含每日发现和每小时消费两个 Cron，需要部署套餐支持对应频率。仅支持每日一次的套餐需降低调度频率，或手动调用
-  `/api/cron/process`。
+- 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复
+  每小时消费，或手动/通过外部调度器调用 `/api/cron/process`。
 - 手动调用 `/api/cron/discover` 或 `/api/cron/process` 时采用 POST，并携带 `Authorization: Bearer $CRON_SECRET`。
 - 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
 

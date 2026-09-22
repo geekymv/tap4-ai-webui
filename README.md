@@ -56,7 +56,7 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 ### Configure the built-in crawler
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
-queue. A separate hourly processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
+queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
 extracts metadata and content, and leaves results in `review` state. Execute `db/postgres/create_crawler.sql` before
 enabling the cron jobs. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL transactions; it
 does not use Supabase Auth, RLS, Data API, or database RPC functions.
@@ -122,9 +122,9 @@ Crawler results are not published automatically. Approve a reviewed candidate wi
 `Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
 reject it.
 
-- The checked-in schedule uses two cron jobs (daily discovery and hourly processing), which requires a Vercel plan that
-  supports this frequency. On plans limited to one daily job, trigger `/api/cron/process` manually or reduce the
-  schedule before deploying.
+- The checked-in schedule is compatible with Vercel Hobby: discovery runs daily at 00:00 UTC and processing runs daily
+  at 01:00 UTC. For larger queues, upgrade for hourly processing or invoke `/api/cron/process` manually or from an
+  external scheduler.
 - Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or `/api/cron/process`.
 - Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
