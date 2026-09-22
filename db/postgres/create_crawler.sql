@@ -34,6 +34,10 @@ create index if not exists candidate_source_item_idx
   on crawler.candidate (source, source_item_id)
   where source_item_id is not null;
 
+create index if not exists candidate_review_idx
+  on crawler.candidate (updated_at, id)
+  where status = 'review';
+
 create unique index if not exists web_navigation_url_unique_idx
   on public.web_navigation (url)
   where url is not null;

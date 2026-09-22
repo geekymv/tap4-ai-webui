@@ -1,15 +1,14 @@
 import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { verifyReviewAuthorization } from '@/lib/admin/review-auth';
 import reviewCandidate, { ReviewAction } from '@/lib/crawler/review';
 import createCrawlerStore from '@/lib/crawler/store';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest, { params: { id } }: { params: { id: string } }) {
-  const authHeader = req.headers.get('authorization');
-  const reviewKey = process.env.REVIEW_AUTH_KEY || process.env.CRON_AUTH_KEY;
-  if (!reviewKey || authHeader !== `Bearer ${reviewKey}`) {
+  if (!verifyReviewAuthorization(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

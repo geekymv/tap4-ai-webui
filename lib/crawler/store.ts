@@ -37,10 +37,16 @@ export type CandidateReview = {
 
 export type ReviewResult = { categoryName?: string; name?: string; status: 'published' | 'rejected' };
 
+export type ReviewQueueCandidate = CrawlCandidate & {
+  source_url: string | null;
+  updated_at: Date;
+};
+
 export interface CrawlerStore {
   claimCandidates(limit: number): Promise<CrawlCandidate[]>;
   listCategories(): Promise<Array<{ name: string; title: string | null }>>;
   listPendingSubmissions(): Promise<Array<{ id: number; url: string | null }>>;
+  listReviewCandidates(offset: number, limit: number): Promise<{ items: ReviewQueueCandidate[]; total: number }>;
   markCandidateFailed(candidate: CrawlCandidate, message: string): Promise<'retry' | 'failed'>;
   markCandidateReview(id: number, review: CandidateReview): Promise<void>;
   reviewCandidate(id: number, action: 'approve' | 'reject', categoryName?: string): Promise<ReviewResult>;
@@ -84,6 +90,24 @@ export default function createCrawlerStore(sql: Sql = getDatabase()): CrawlerSto
         order by is_feature desc, created_at asc
         limit 50
       `;
+    },
+
+    async listReviewCandidates(offset, limit) {
+      const safeOffset = Math.max(0, offset);
+      const safeLimit = Math.max(1, Math.min(limit, 50));
+      const [items, countRows] = await Promise.all([
+        sql<ReviewQueueCandidate[]>`
+          select * from crawler.candidate
+          where status = 'review'
+          order by updated_at asc, id asc
+          offset ${safeOffset}
+          limit ${safeLimit}
+        `,
+        sql<Array<{ count: number }>>`
+          select count(*)::integer as count from crawler.candidate where status = 'review'
+        `,
+      ]);
+      return { items, total: countRows[0]?.count || 0 };
     },
 
     async markCandidateFailed(candidate, message) {

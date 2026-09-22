@@ -56,10 +56,11 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 ### Configure the built-in crawler
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
-queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
-extracts metadata and content, and leaves results in `review` state. Execute `db/postgres/create_crawler.sql` before
-enabling the cron jobs. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL transactions; it
-does not use Supabase Auth, RLS, Data API, or database RPC functions.
+queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes
+robots.txt, extracts metadata and content, and leaves results in `review` state. Execute
+`db/postgres/create_crawler.sql` before enabling the cron jobs. Existing deployments should rerun this idempotent script
+to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL
+transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
@@ -118,9 +119,11 @@ SUBMIT_AUTH_KEY="xxxx"
 **Note: This version uses Vercel's scheduled tasks to automatically read and submit websites and generate website
 results.**
 
-Crawler results are not published automatically. Approve a reviewed candidate with `POST /api/crawl/review/{id}`, an
-`Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
-reject it.
+Crawler results are not published automatically. Open `/admin/crawl` and sign in with `REVIEW_AUTH_KEY` to inspect
+candidates, override categories, and approve or reject them. The admin session uses a short-lived signed HttpOnly
+cookie; database credentials and the review key are not sent back to the browser. You can also approve a candidate with
+`POST /api/crawl/review/{id}`, an `Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`.
+Use `{"action":"reject"}` to reject it.
 
 - The checked-in schedule is compatible with Vercel Hobby: discovery runs daily at 00:00 UTC and processing runs daily
   at 01:00 UTC. For larger queues, upgrade for hourly processing or invoke `/api/cron/process` manually or from an

@@ -55,10 +55,10 @@
 
 ### 配置内置抓取器
 
-每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每日消费任务以 2 条受控并
-发，并在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
-`db/postgres/create_crawler.sql`。抓取器仅通过服务端 `DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、
-RLS、Data API 或数据库 RPC 函数。
+每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每日消费任务以 2 条受控并发，并
+在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
+`db/postgres/create_crawler.sql`；已有部署也应重新执行一次该幂等脚本，以创建管理员审核列表索引。抓取器仅通过服务端
+`DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、RLS、Data API 或数据库 RPC 函数。
 
 ### 创建Supabase数据库及执行sql脚本
 
@@ -106,11 +106,12 @@ SUBMIT_AUTH_KEY="xxxx"
 
 **注：此版本采用了vercel的定时任务用来自动读取自动提交的网站并生成网站结果**
 
-抓取结果不会自动发布。审核通过时调用 `POST /api/crawl/review/{id}`，携带 `Authorization: Bearer $REVIEW_AUTH_KEY` 和
-JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
+抓取结果不会自动发布。访问 `/admin/crawl`，使用 `REVIEW_AUTH_KEY` 登录后可查看候选、调整分类并批准或拒绝；管理员会话使用
+短期签名的 HttpOnly Cookie，数据库连接和审核密钥不会发送到前端。也可直接调用 `POST /api/crawl/review/{id}`，携带
+`Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
 
-- 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复
-  每小时消费，或手动/通过外部调度器调用 `/api/cron/process`。
+- 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复每小时
+  消费，或手动/通过外部调度器调用 `/api/cron/process`。
 - 手动调用 `/api/cron/discover` 或 `/api/cron/process` 时采用 POST，并携带 `Authorization: Bearer $CRON_SECRET`。
 - 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
 
