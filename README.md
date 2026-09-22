@@ -14,7 +14,7 @@ suitable for learners interested in NextJs. Everyone is welcome to fork and star
 ## Version 2.0.0 Update Notes
 
 - AI site data is stored using a supabase database.
-- It is connected to the Tap4 AI crawler project, supporting fully automatic submission and collection.
+- Website discovery and crawling run inside this project, with candidates held for review before publication.
 - Supports simple categorization and search.
 
 Note: If you are not familiar with the database, or are concerned about compatibility issues with version 1.0.0, please
@@ -53,26 +53,26 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 
 ## Deployment Instructions
 
-### Deploying Tap4 AI Crawler
+### Configure the built-in crawler
 
-See [Tap4 AI Crawler](https://github.com/6677-ai/tap4-ai-crawler) for details. After deployment, you can use the
-platform's domain name or a custom domain name as the API interface for generating AI tool web page content (e.g.,
-https://{crawler_domain}/site/crawl, where {crawler_domain} is your specific domain name).
-
-**You need to configure it in the CRAWLER_API environment variable.**
+The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
+queue. A separate hourly processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes robots.txt,
+extracts metadata and content, and leaves results in `review` state. Execute `db/postgres/create_crawler.sql` before
+enabling the cron jobs. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL transactions; it
+does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
 - Register on [Supabase](https://supabase.com/), create a database, and record the SUPABASE_URL and SUPABASE_ANON_KEY
   for later Vercel environment variable deployment.
-- Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql,
-  insert_category_data.sql, insert_data.sql.
+- Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql, create_crawler.sql,
+  insert_category_data.sql, insert_data.sql, then run `db/postgres/create_crawler.sql` with a PostgreSQL client.
 
 **Note: If you need to modify the data, you can refer to the SQL files or directly edit them on the Supabase backend.**
 
 ### Deploy on Vercel **(Don't forget to set the environment variables)**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CRAWLER_API,CRAWLER_API_KEY,CRON_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F6677-ai%2Ftap4-ai-webui.git&env=NEXT_PUBLIC_SITE_URL,GOOGLE_TRACKING_ID,GOOGLE_ADSENSE_URL,CONTACT_US_EMAIL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,CRON_SECRET,REVIEW_AUTH_KEY,SUBMIT_AUTH_KEY&project-name=tap4-ai)
 
 Environment params as below: **Note: All key is in need, and the value including
 NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY write with the correct value**
@@ -91,11 +91,21 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Web crawler API interface
-CRAWLER_API="https://{crawler_domain}/site/crawl_async"
+# Server-only standard PostgreSQL connection used by the crawler
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
 
-# Crawler interface verification key
-CRAWLER_API_KEY="xxxx"
+# Vercel Cron authentication
+CRON_SECRET="keyxxxx"
+
+# Candidate review API authentication
+REVIEW_AUTH_KEY="review-keyxxxx"
+
+# Optional discovery settings
+GITHUB_TOKEN=""
+DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
+CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
@@ -108,9 +118,15 @@ SUBMIT_AUTH_KEY="xxxx"
 **Note: This version uses Vercel's scheduled tasks to automatically read and submit websites and generate website
 results.**
 
-- Free version of Vercel: Supports only one call per day, you can manually call {domain}/api/cron, using POST, Header:
-  {"Authorization":"Bearer auth_key"}, where auth_key is a custom configured environment variable.
-- Pro version of Vercel: You can refer to this document to configure
+Crawler results are not published automatically. Approve a reviewed candidate with `POST /api/crawl/review/{id}`, an
+`Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
+reject it.
+
+- The checked-in schedule uses two cron jobs (daily discovery and hourly processing), which requires a Vercel plan that
+  supports this frequency. On plans limited to one daily job, trigger `/api/cron/process` manually or reduce the
+  schedule before deploying.
+- Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or `/api/cron/process`.
+- Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
 
 ## Running Locally
@@ -133,7 +149,7 @@ git clone https://github.com/6677-ai/tap4-ai-webui.git
 
 Register on Supabase, create a database, and record the SUPABASE_URL and SUPABASE_ANON_KEY for later Vercel environment
 variable deployment. Execute the SQL files in the project's db directory on the Supabase backend: create_table.sql,
-insert_category_data.sql, insert_data.sql.
+insert_category_data.sql, insert_data.sql, then run `db/postgres/create_crawler.sql` with a PostgreSQL client.
 
 **Note: If you need to modify the data, you can refer to the SQL files or directly edit them on the Supabase backend.**
 
@@ -155,11 +171,15 @@ CONTACT_US_EMAIL="contact@tap4.ai"
 # Supabase database URL and key
 NEXT_PUBLIC_SUPABASE_URL="https://xxxyyyzzz.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="XXX.YYY.ZZZ"
 
-# Web crawler API interface
-CRAWLER_API="https://craw_domain/site/crawl_async"
-
-# Crawler interface verification key
-CRAWLER_API_KEY="xxxx"
+# Server-only standard PostgreSQL connection and crawler settings
+DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
+CRON_SECRET="keyxxxx"
+REVIEW_AUTH_KEY="review-keyxxxx"
+GITHUB_TOKEN=""
+DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
+CRAWL_BATCH_SIZE="5"
+CRAWL_CONCURRENCY="2"
+CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
@@ -219,16 +239,11 @@ Open: [Tap4 AI](https://tap4.ai)
 
 ### AI Video Online - Advanced AI Video All in One
 
-[AI Video Online](https://videoweb.ai/)
-More about AI Video Online:
-https://www.zhihu.com/pin/1835046959477567488
+[AI Video Online](https://videoweb.ai/) More about AI Video Online: https://www.zhihu.com/pin/1835046959477567488
 
 ### Flux Pro AI - Free Online Flux.1 AI Image Generator
 
-[Flux 1.1 Pro](https://fluxproweb.com/)
-More about Flux Pro AI
-https://www.zhihu.com/pin/1832771259513069568
-
+[Flux 1.1 Pro](https://fluxproweb.com/) More about Flux Pro AI https://www.zhihu.com/pin/1832771259513069568
 
 ### Free Stable Diffusion 3 Online Tool
 
@@ -247,7 +262,6 @@ https://www.zhihu.com/pin/1832771259513069568
 ### Website content AI crawler
 
 visit: [6677-ai/tap4-ai-crawler](https://github.com/6677-ai/tap4-ai-crawler)
-
 
 #### More AI
 
@@ -268,33 +282,27 @@ Photo to Video AI is currently available for free experience, please visit
 
 ### Flux KI
 
-Flux KI is the powerful generative AI for German, please visit
-[Flux Pro Image Generator](https://flux-pro.net/)
+Flux KI is the powerful generative AI for German, please visit [Flux Pro Image Generator](https://flux-pro.net/)
 
 ### Flux IA
-Flux IA is the generative IA for France & Espain, please visit:
-[Flux IA](https://fluxia.pro/)
+
+Flux IA is the generative IA for France & Espain, please visit: [Flux IA](https://fluxia.pro/)
 
 ### Virtual Try On AI
 
-Virtual Try On AI - Free Online Fashion AI for clothes, visit
-[Virtual Try On AI](https://aitryon.art/)
+Virtual Try On AI - Free Online Fashion AI for clothes, visit [Virtual Try On AI](https://aitryon.art/)
 
 ### GPT 4o image generator
 
-Chat 4o build with openai o1 and chatgpt 4o, please visit
-[Chat 4O](https://chat4o.ai/)
+Chat 4o build with openai o1 and chatgpt 4o, please visit [Chat 4O](https://chat4o.ai/)
 
 ### Janus Pro
 
-Janus Pro Image Generator build with Janus Pro Model by DeepSeek, please visit
-[Janus Pro](https://janusproweb.com/)
-
+Janus Pro Image Generator build with Janus Pro Model by DeepSeek, please visit [Janus Pro](https://janusproweb.com/)
 
 ### Grok Image Generator
 
-Grok Image Generator with flux ai, please visit
-[Grok Image Generator](https://grokimagegenerator.net/))
+Grok Image Generator with flux ai, please visit [Grok Image Generator](https://grokimagegenerator.net/))
 
 ### Free Stable Diffusion 3 Online
 
@@ -303,8 +311,7 @@ Stable Diffusion 3 Medium is currently available for free experience, please vis
 
 ### Artiverse AI Tools Directory
 
-Artiverse AI Tools Directory. If you are interested with it, visit
-[Artiverse AI](https://artiverse.app/)
+Artiverse AI Tools Directory. If you are interested with it, visit [Artiverse AI](https://artiverse.app/)
 
 ### The Tattoo AI Generator and Design
 
@@ -313,47 +320,47 @@ Tattao AI Design is a tattoo ai generator and design for the tattoo fans. If you
 
 ### Best AI Image Generator
 
-Best AI Image Generator is the most powerful AI Image Generator integrated with Flux AI and Stable Diffusion AI. If you are interested with it, visit
-[Best AI Image Generator](https://bestimage.ai/)
+Best AI Image Generator is the most powerful AI Image Generator integrated with Flux AI and Stable Diffusion AI. If you
+are interested with it, visit [Best AI Image Generator](https://bestimage.ai/)
 
 ### Dream Companion AI
 
-Let your AI companion take care of your most personal needs with our innovative NSFW AI roleplay experience. If you are interested with it, visit
-[Dream Companion AI](https://www.mydreamcompanion.com/)
+Let your AI companion take care of your most personal needs with our innovative NSFW AI roleplay experience. If you are
+interested with it, visit [Dream Companion AI](https://www.mydreamcompanion.com/)
 
 ### WUI AI
 
 WUI.ai uses AI to turn your long-form videos into short clips. If you are interested with it, visit
 [WUI.AI](https://www.wui.ai/)
 
-
 ### Sourcetable AI
 
-Sourcetable AI - Advanced Spreadsheet Software for Data Analysis and Business Intelligence. If you are interested with it, visit
-[Sourcetable AI](https://sourcetable.com)
-
+Sourcetable AI - Advanced Spreadsheet Software for Data Analysis and Business Intelligence. If you are interested with
+it, visit [Sourcetable AI](https://sourcetable.com)
 
 ### Remio AI Note Taker
 
-Remio AI Note Taker transforms scattered information into structured knowledge with ease. Designed as your personal AI knowledge hub, it helps you capture, organize, and blend insights seamlessly. Whether you're researching, brainstorming, or writing, remio streamlines your workflow by intelligently managing notes, highlights, and references—all while keeping your data private and secure. Perfect for professionals, students, and creatives, remio turns messy ideas into clear, actionable knowledge. Join the waitlist to experience smarter note-taking today.. If you are interested with it, visit
-[Remio AI Note Taker](https://www.remio.ai/))
-
+Remio AI Note Taker transforms scattered information into structured knowledge with ease. Designed as your personal AI
+knowledge hub, it helps you capture, organize, and blend insights seamlessly. Whether you're researching, brainstorming,
+or writing, remio streamlines your workflow by intelligently managing notes, highlights, and references—all while
+keeping your data private and secure. Perfect for professionals, students, and creatives, remio turns messy ideas into
+clear, actionable knowledge. Join the waitlist to experience smarter note-taking today.. If you are interested with it,
+visit [Remio AI Note Taker](https://www.remio.ai/))
 
 ### Ghibli Art Studio
 
-Ghibli Art Studio - Transform your photos into enchanting Ghibli-style artwork with our online Ghibli Art Studio AI tool. Powered by Studio ghiblify's ghiblify image-to-image technology, create magical Ghibli-inspired visuals faster and more affordably than ever before. If you are interested with it, visit
+Ghibli Art Studio - Transform your photos into enchanting Ghibli-style artwork with our online Ghibli Art Studio AI
+tool. Powered by Studio ghiblify's ghiblify image-to-image technology, create magical Ghibli-inspired visuals faster and
+more affordably than ever before. If you are interested with it, visit
 [Ghibli Art Studio](https://videoweb.ai/ghibli-studio/)
-
 
 ### AI Action Figure Generator
 
-AI Action Figure Generator - Transform Your Photos into Collectible Figures. Experience the magic of becoming a collectible figure by transforming your photos into professional-grade action figures using AI technology. If you are interested with it, visit
-[AI Action Figure Generator](https://flux-ai.io/ai-action-figure-generator/)
+AI Action Figure Generator - Transform Your Photos into Collectible Figures. Experience the magic of becoming a
+collectible figure by transforming your photos into professional-grade action figures using AI technology. If you are
+interested with it, visit [AI Action Figure Generator](https://flux-ai.io/ai-action-figure-generator/)
 
 ### Makeform AI
-Makeform AI is a free online ai form builder like ChatGPT. Chat with AI to build surveys, quizzes, or polls in seconds – no coding needed!  If you are interested with it, visit
-[Makeform AI](https://www.makeform.ai/)
 
-
-
-
+Makeform AI is a free online ai form builder like ChatGPT. Chat with AI to build surveys, quizzes, or polls in seconds –
+no coding needed! If you are interested with it, visit [Makeform AI](https://www.makeform.ai/)
