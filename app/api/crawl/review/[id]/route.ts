@@ -32,7 +32,9 @@ export async function POST(req: NextRequest, { params: { id } }: { params: { id:
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Review failed';
-    const status = message.includes('candidate_not_reviewable') ? 409 : 500;
+    let status = 500;
+    if (message.includes('candidate_not_reviewable')) status = 409;
+    if (message.includes('invalid_category')) status = 400;
     return NextResponse.json({ error: message }, { status });
   }
 }

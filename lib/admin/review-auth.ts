@@ -7,7 +7,7 @@ import { createAdminSessionToken, secretsEqual, verifyAdminSessionToken } from '
 const ADMIN_COOKIE_NAME = 'crawler_admin_session';
 
 export function getReviewAuthKey() {
-  return process.env.REVIEW_AUTH_KEY || process.env.CRON_AUTH_KEY || '';
+  return process.env.REVIEW_AUTH_KEY || '';
 }
 
 export function verifyReviewKey(candidate: string) {

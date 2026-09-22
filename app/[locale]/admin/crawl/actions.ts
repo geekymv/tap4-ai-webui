@@ -44,12 +44,6 @@ export async function review(formData: FormData) {
   const action = requestedAction as ReviewAction;
   const categoryName = typeof categoryValue === 'string' && categoryValue ? categoryValue : undefined;
   const store = createCrawlerStore();
-  if (action === 'approve' && categoryName) {
-    const categories = await store.listCategories();
-    if (!categories.some((category) => category.name === categoryName)) {
-      redirect(`${ADMIN_PATH}?error=invalid-category`);
-    }
-  }
 
   try {
     const result = await reviewCandidate(store, id, action, categoryName);
@@ -61,10 +55,9 @@ export async function review(formData: FormData) {
     }
     revalidatePath(ADMIN_PATH);
   } catch (error) {
-    const code =
-      error instanceof Error && error.message.includes('candidate_not_reviewable')
-        ? 'already-reviewed'
-        : 'review-failed';
+    let code = 'review-failed';
+    if (error instanceof Error && error.message.includes('candidate_not_reviewable')) code = 'already-reviewed';
+    if (error instanceof Error && error.message.includes('invalid_category')) code = 'invalid-category';
     redirect(`${ADMIN_PATH}?error=${code}`);
   }
 

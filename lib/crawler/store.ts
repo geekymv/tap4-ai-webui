@@ -150,6 +150,13 @@ export default function createCrawlerStore(sql: Sql = getDatabase()): CrawlerSto
         if (!candidate.title || !candidate.description || !candidate.detail) {
           throw new Error('candidate_content_incomplete');
         }
+        if (categoryOverride) {
+          const [category] = await transaction<Array<{ name: string }>>`
+            select name from navigation_category
+            where name = ${categoryOverride} and del_flag = 0
+          `;
+          if (!category) throw new Error('invalid_category');
+        }
         const categoryName = categoryOverride || candidate.category_name || 'other';
         const baseName = candidate.domain
           .replace(/^www\./, '')
