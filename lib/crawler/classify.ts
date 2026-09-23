@@ -1,6 +1,6 @@
 type Category = { name: string; title: string | null };
 
-export default function classifyWebsite(title: string, description: string, categories: Category[]) {
+export default function classifyWebsite(title: string, description: string, categories: Category[]): string | null {
   const haystack = `${title} ${description}`.toLowerCase();
   let bestName: string | null = null;
   let bestScore = 0;

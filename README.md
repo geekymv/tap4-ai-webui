@@ -108,6 +108,14 @@ CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
 
+# Optional OpenAI-compatible LLM enrichment (Groq defaults)
+CRAWLER_LLM_ENABLED="false"
+CRAWLER_LLM_API_KEY=""
+CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
+CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
+CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_MAX_INPUT_CHARS="12000"
+
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
 
@@ -129,6 +137,9 @@ Use `{"action":"reject"}` to reject it.
   at 01:00 UTC. For larger queues, upgrade for hourly processing or invoke `/api/cron/process` manually or from an
   external scheduler.
 - Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or `/api/cron/process`.
+- To generate richer summaries and Markdown details, set `CRAWLER_LLM_ENABLED=true` and a server-only
+  `CRAWLER_LLM_API_KEY`. The default endpoint is Groq's OpenAI-compatible API; endpoint and model are configurable.
+  Provider errors or invalid output fall back to extracted page content and do not block review.
 - Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
 
@@ -183,6 +194,12 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWLER_LLM_ENABLED="false"
+CRAWLER_LLM_API_KEY=""
+CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
+CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
+CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_MAX_INPUT_CHARS="12000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"

@@ -96,6 +96,14 @@ CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
 
+# 可选的 OpenAI 兼容 LLM 内容增强（默认配置为 Groq）
+CRAWLER_LLM_ENABLED="false"
+CRAWLER_LLM_API_KEY=""
+CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
+CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
+CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_MAX_INPUT_CHARS="12000"
+
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
 
@@ -113,6 +121,8 @@ SUBMIT_AUTH_KEY="xxxx"
 - 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复每小时
   消费，或手动/通过外部调度器调用 `/api/cron/process`。
 - 手动调用 `/api/cron/discover` 或 `/api/cron/process` 时采用 POST，并携带 `Authorization: Bearer $CRON_SECRET`。
+- 如需生成更丰富的摘要和 Markdown 详情，配置服务端 `CRAWLER_LLM_API_KEY` 并设置 `CRAWLER_LLM_ENABLED=true`。默认使用
+  Groq 的 OpenAI 兼容接口，地址和模型均可调整；服务异常或输出校验失败时会回退到原始抓取内容，不阻断审核。
 - 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
 
 ## 本地运行
@@ -169,6 +179,12 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWLER_LLM_ENABLED="false"
+CRAWLER_LLM_API_KEY=""
+CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
+CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
+CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_MAX_INPUT_CHARS="12000"
 
 # Custom interface verification key
 CRON_AUTH_KEY="keyxxxx"
