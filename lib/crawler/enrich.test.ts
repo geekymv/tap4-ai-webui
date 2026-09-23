@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import enrichWebsite from './enrich';
+import enrichWebsite, { LlmEnrichmentTimeoutError } from './enrich';
 import { ExtractedWebsite } from './extract';
 
 const website: ExtractedWebsite = {
@@ -18,6 +18,7 @@ const env = {
   CRAWLER_LLM_API_KEY: 'secret-key',
   CRAWLER_LLM_ENABLED: 'true',
   CRAWLER_LLM_MODEL: 'test-model',
+  CRAWLER_LLM_WRITE_RESERVE_MS: '100',
 };
 
 function providerResponse(content: Record<string, unknown>) {
@@ -73,6 +74,81 @@ describe('crawler LLM enrichment', () => {
         fetcher: fetcher as typeof fetch,
       }),
     ).resolves.toMatchObject({ categoryName: null });
+  });
+
+  it.each([
+    ['reference image', '![Tracking pixel][pixel]\n\n[pixel]: https://tracker.example/pixel.png'],
+    ['reference link', '[Read more][target]\n\n[target]: https://malicious.example'],
+  ])('rejects %s syntax in generated Markdown', async (_name, unsafeMarkdown) => {
+    const fetcher = vi.fn(async () =>
+      providerResponse({
+        categoryConfidence: 0.9,
+        categoryName: 'writing',
+        description: 'Example is an AI writing assistant that prepares launch content from supplied product briefs.',
+        detail: `## Overview\n\n${'Factual product information. '.repeat(8)}\n\n${unsafeMarkdown}`,
+      }),
+    );
+
+    await expect(
+      enrichWebsite(website, categories, {
+        deadline: Date.now() + 1000,
+        env,
+        fetcher: fetcher as typeof fetch,
+      }),
+    ).rejects.toThrow('Detail must not contain links, images, or HTML');
+  });
+
+  it('uses a provider timeout before the hard deadline to reserve persistence time', async () => {
+    const startedAt = Date.now();
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+        }),
+    );
+
+    await expect(
+      enrichWebsite(website, categories, {
+        deadline: startedAt + 300,
+        env: { ...env, CRAWLER_LLM_TIMEOUT_MS: '50' },
+        fetcher: fetcher as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(LlmEnrichmentTimeoutError);
+    expect(Date.now() - startedAt).toBeLessThan(200);
+  });
+
+  it('does not convert a parent hard-deadline abort into a provider timeout', async () => {
+    const controller = new AbortController();
+    const hardDeadlineError = new Error('Crawler batch deadline exceeded');
+    const fetcher = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+        }),
+    );
+    setTimeout(() => controller.abort(hardDeadlineError), 10);
+
+    await expect(
+      enrichWebsite(website, categories, {
+        deadline: Date.now() + 300,
+        env: { ...env, CRAWLER_LLM_TIMEOUT_MS: '100' },
+        fetcher: fetcher as typeof fetch,
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(hardDeadlineError);
+  });
+
+  it('skips the provider when only the persistence reserve remains', async () => {
+    const fetcher = vi.fn();
+
+    await expect(
+      enrichWebsite(website, categories, {
+        deadline: Date.now() + 50,
+        env,
+        fetcher: fetcher as typeof fetch,
+      }),
+    ).rejects.toBeInstanceOf(LlmEnrichmentTimeoutError);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('does not call a provider when enrichment is disabled', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { LlmEnrichmentTimeoutError } from './enrich';
 import processCandidate from './process';
 import { CandidateReview, CrawlCandidate, CrawlerStore } from './store';
 
@@ -61,6 +62,26 @@ describe('processCandidate LLM enrichment', () => {
     });
 
     expect(result).toMatchObject({ enrichment: 'fallback', enrichmentError: 'provider unavailable', status: 'review' });
+    expect(saved).toMatchObject({ description: website.description, detail: website.detail });
+  });
+
+  it('falls back when the LLM times out inside its persistence reserve', async () => {
+    let saved: CandidateReview | undefined;
+    const store = {
+      markCandidateReview: async (_id: number, review: CandidateReview) => {
+        saved = review;
+      },
+    } as CrawlerStore;
+
+    const result = await processCandidate(store, candidate, [], {
+      crawl: async () => website,
+      deadline: Date.now() + 1000,
+      enrich: async () => {
+        throw new LlmEnrichmentTimeoutError();
+      },
+    });
+
+    expect(result).toMatchObject({ enrichment: 'fallback', status: 'review' });
     expect(saved).toMatchObject({ description: website.description, detail: website.detail });
   });
 });

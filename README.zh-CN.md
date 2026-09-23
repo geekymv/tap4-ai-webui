@@ -102,6 +102,7 @@ CRAWLER_LLM_API_KEY=""
 CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
 CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
 CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_WRITE_RESERVE_MS="3000"
 CRAWLER_LLM_MAX_INPUT_CHARS="12000"
 
 # Custom interface verification key
@@ -184,6 +185,7 @@ CRAWLER_LLM_API_KEY=""
 CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"
 CRAWLER_LLM_MODEL="llama-3.3-70b-versatile"
 CRAWLER_LLM_TIMEOUT_MS="8000"
+CRAWLER_LLM_WRITE_RESERVE_MS="3000"
 CRAWLER_LLM_MAX_INPUT_CHARS="12000"
 
 # Custom interface verification key

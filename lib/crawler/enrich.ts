@@ -1,3 +1,6 @@
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
+import { visit } from 'unist-util-visit';
 import { z } from 'zod';
 
 import { ExtractedWebsite } from './extract';
@@ -5,6 +8,17 @@ import { ExtractedWebsite } from './extract';
 const DEFAULT_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
+
+const UNSAFE_MARKDOWN_NODES = new Set(['definition', 'html', 'image', 'imageReference', 'link', 'linkReference']);
+
+function containsUnsafeMarkdown(value: string) {
+  const tree = unified().use(remarkParse).parse(value);
+  let unsafe = false;
+  visit(tree, (node) => {
+    if (UNSAFE_MARKDOWN_NODES.has(node.type)) unsafe = true;
+  });
+  return unsafe;
+}
 
 const enrichmentSchema = z.object({
   categoryConfidence: z.number().min(0).max(1),
@@ -20,15 +34,19 @@ const enrichmentSchema = z.object({
     .trim()
     .min(200)
     .max(15000)
-    .refine(
-      (value) => !/!?\[[^\]]*\]\([^)]*\)|<[^>\n]+>/.test(value),
-      'Detail must not contain links, images, or HTML',
-    ),
+    .refine((value) => !containsUnsafeMarkdown(value), 'Detail must not contain links, images, or HTML'),
 });
 
 type Category = { name: string; title: string | null };
 type Fetcher = typeof fetch;
 type Environment = Record<string, string | undefined>;
+
+export class LlmEnrichmentTimeoutError extends Error {
+  constructor(message = 'Crawler LLM request timed out') {
+    super(message);
+    this.name = 'LlmEnrichmentTimeoutError';
+  }
+}
 
 export type EnrichedWebsite = {
   categoryName: string | null;
@@ -76,15 +94,20 @@ function makeSystemPrompt(categories: Category[]) {
 
 function createRequestSignal(parent: AbortSignal | undefined, timeoutMs: number) {
   const controller = new AbortController();
+  let timedOut = false;
   const abort = () => controller.abort(parent?.reason || new Error('Crawler LLM request aborted'));
   if (parent?.aborted) abort();
   else parent?.addEventListener('abort', abort, { once: true });
-  const timer = setTimeout(() => controller.abort(new Error('Crawler LLM request timed out')), timeoutMs);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new LlmEnrichmentTimeoutError());
+  }, timeoutMs);
   return {
     cleanup: () => {
       clearTimeout(timer);
       parent?.removeEventListener('abort', abort);
     },
+    didTimeOut: () => timedOut,
     signal: controller.signal,
   };
 }
@@ -107,8 +130,16 @@ export default async function enrichWebsite(
   if (remainingMs <= 0 || options.signal?.aborted) {
     throw options.signal?.reason || new Error('Crawler deadline exceeded');
   }
+  const writeReserveMs = positiveInteger(env.CRAWLER_LLM_WRITE_RESERVE_MS, 3000, 10000);
+  const requestBudgetMs = remainingMs - writeReserveMs;
+  if (requestBudgetMs <= 0) {
+    throw new LlmEnrichmentTimeoutError('Crawler LLM skipped to preserve time for persistence');
+  }
   const configuredTimeout = positiveInteger(env.CRAWLER_LLM_TIMEOUT_MS, 8000, 15000);
-  const { cleanup, signal } = createRequestSignal(options.signal, Math.min(configuredTimeout, remainingMs));
+  const { cleanup, didTimeOut, signal } = createRequestSignal(
+    options.signal,
+    Math.min(configuredTimeout, requestBudgetMs),
+  );
   const maxInputCharacters = positiveInteger(env.CRAWLER_LLM_MAX_INPUT_CHARS, 12000, 20000);
 
   try {
@@ -154,6 +185,9 @@ export default async function enrichWebsite(
         : null;
 
     return { categoryName, description: parsed.description, detail: parsed.detail };
+  } catch (error) {
+    if (!options.signal?.aborted && didTimeOut()) throw new LlmEnrichmentTimeoutError();
+    throw error;
   } finally {
     cleanup();
   }
