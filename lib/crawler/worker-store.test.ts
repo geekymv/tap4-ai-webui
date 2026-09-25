@@ -62,6 +62,7 @@ describe('external crawler worker store', () => {
 
   it('rejects a result whose category is no longer active', async () => {
     const { store } = createStore((query) => {
+      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
       if (query.includes('select name from navigation_category')) return [];
       throw new Error(`Unexpected query: ${query}`);
     });
@@ -69,13 +70,30 @@ describe('external crawler worker store', () => {
     await expect(store.complete(resultInput)).rejects.toThrow('invalid_category');
   });
 
-  it('completes only a processing job with a live matching lease', async () => {
+  it('rejects cross-site canonical and image URLs', async () => {
     const { store } = createStore((query) => {
-      if (query.includes('select name from navigation_category')) return [{ name: 'writing' }];
-      if (query.includes("status = 'processing'")) return [{ id: 1 }];
+      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
       throw new Error(`Unexpected query: ${query}`);
     });
 
-    await expect(store.complete(resultInput)).resolves.toEqual({ status: 'review' });
+    await expect(store.complete({ ...resultInput, canonicalUrl: 'https://attacker.example/' })).rejects.toThrow(
+      'invalid_canonical_origin',
+    );
+    await expect(store.complete({ ...resultInput, imageUrl: 'https://tracker.example/pixel.png' })).rejects.toThrow(
+      'invalid_image_origin',
+    );
+  });
+
+  it('allows the www host variant and completes a live matching lease', async () => {
+    const { store } = createStore((query) => {
+      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
+      if (query.includes('select name from navigation_category')) return [{ name: 'writing' }];
+      if (query.includes('update crawler.candidate')) return [];
+      throw new Error(`Unexpected query: ${query}`);
+    });
+
+    await expect(store.complete({ ...resultInput, imageUrl: 'https://www.example.com/image.png' })).resolves.toEqual({
+      status: 'review',
+    });
   });
 });

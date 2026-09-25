@@ -2,6 +2,19 @@ import { z } from 'zod';
 
 import { containsUnsafeMarkdown } from './enrich';
 
+function parsedHttpUrl(value: string) {
+  const url = new URL(value);
+  return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url : null;
+}
+
+function normalizedHostname(value: string) {
+  return new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+}
+
+export function haveSameHttpHost(first: string, second: string) {
+  return normalizedHostname(first) === normalizedHostname(second);
+}
+
 export const workerClaimSchema = z
   .object({
     // eslint-disable-next-line newline-per-chained-call
@@ -20,7 +33,7 @@ export const workerResultSchema = candidateLeaseSchema
       .string()
       .url()
       .max(2048)
-      .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol)),
+      .refine(parsedHttpUrl, 'canonicalUrl must be an HTTP URL without credentials'),
     categoryName: z.string().min(1).max(100).nullable(),
     description: z.string().trim().min(1).max(600),
     detail: z
@@ -33,7 +46,7 @@ export const workerResultSchema = candidateLeaseSchema
       .string()
       .url()
       .max(2048)
-      .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol))
+      .refine(parsedHttpUrl, 'imageUrl must be an HTTP URL without credentials')
       .nullable(),
     title: z.string().trim().min(1).max(300),
   })

@@ -17,7 +17,15 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Worker result failed';
     let status = 500;
-    if (error instanceof ZodError || error instanceof SyntaxError || message.includes('invalid_category')) status = 400;
+    if (
+      error instanceof ZodError ||
+      error instanceof SyntaxError ||
+      message.includes('invalid_category') ||
+      message.includes('invalid_canonical_origin') ||
+      message.includes('invalid_image_origin')
+    ) {
+      status = 400;
+    }
     if (message.includes('invalid_or_expired_lease')) status = 409;
     return NextResponse.json({ error: message }, { status });
   }

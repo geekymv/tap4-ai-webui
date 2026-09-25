@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Sql } from 'postgres';
 
+import { normalizeUrl } from './normalize';
 import { CrawlCandidate } from './store-factory';
-import { WorkerResultInput } from './worker-contract';
+import { haveSameHttpHost, WorkerResultInput } from './worker-contract';
 
 const LEASE_MINUTES = 20;
 
@@ -58,30 +59,41 @@ export default function createCrawlerWorkerStore(sql: Sql): CrawlerWorkerStore {
 
     async complete(input) {
       return sql.begin(async (transaction) => {
+        const leaseHash = hashToken(input.leaseToken);
+        const [candidate] = await transaction<Array<{ id: number; url: string }>>`
+          select id, url from crawler.candidate
+          where id = ${input.candidateId} and status = 'processing'
+            and worker_lease_hash = ${leaseHash} and worker_lease_expires_at > now()
+          for update
+        `;
+        if (!candidate) {
+          const [completed] = await transaction<Array<{ id: number }>>`
+            select id from crawler.candidate
+            where id = ${input.candidateId} and status = 'review' and worker_lease_hash = ${leaseHash}
+          `;
+          if (completed) return { status: 'review' as const };
+          throw new Error('invalid_or_expired_lease');
+        }
+        const canonicalUrl = normalizeUrl(input.canonicalUrl);
+        if (!haveSameHttpHost(candidate.url, canonicalUrl)) throw new Error('invalid_canonical_origin');
+        if (input.imageUrl && !haveSameHttpHost(canonicalUrl, input.imageUrl)) {
+          throw new Error('invalid_image_origin');
+        }
         if (input.categoryName) {
           const [category] = await transaction<Array<{ name: string }>>`
             select name from navigation_category where name = ${input.categoryName} and del_flag = 0
           `;
           if (!category) throw new Error('invalid_category');
         }
-        const leaseHash = hashToken(input.leaseToken);
-        const [updated] = await transaction<Array<{ id: number }>>`
+        await transaction`
           update crawler.candidate
-          set canonical_url = ${input.canonicalUrl}, category_name = ${input.categoryName},
+          set canonical_url = ${canonicalUrl}, category_name = ${input.categoryName},
               description = ${input.description}, detail = ${input.detail}, error_message = null,
               image_url = ${input.imageUrl}, locked_at = null, next_retry_at = null,
               status = 'review', title = ${input.title}, updated_at = now()
-          where id = ${input.candidateId} and status = 'processing'
-            and worker_lease_hash = ${leaseHash} and worker_lease_expires_at > now()
-          returning id
+          where id = ${input.candidateId}
         `;
-        if (updated) return { status: 'review' as const };
-        const [completed] = await transaction<Array<{ id: number }>>`
-          select id from crawler.candidate
-          where id = ${input.candidateId} and status = 'review' and worker_lease_hash = ${leaseHash}
-        `;
-        if (completed) return { status: 'review' as const };
-        throw new Error('invalid_or_expired_lease');
+        return { status: 'review' as const };
       });
     },
 

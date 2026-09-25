@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { workerClaimSchema, workerFailureSchema, workerResultSchema } from './worker-contract';
+import { haveSameHttpHost, workerClaimSchema, workerFailureSchema, workerResultSchema } from './worker-contract';
 
 const validResult = {
   candidateId: 1,
@@ -33,9 +33,16 @@ describe('external crawler worker contract', () => {
     );
   });
 
+  it('only treats exact or www host variants as the same source', () => {
+    expect(haveSameHttpHost('https://example.com/', 'https://www.example.com/image.png')).toBe(true);
+    expect(haveSameHttpHost('https://example.com/', 'https://cdn.example.com/image.png')).toBe(false);
+    expect(haveSameHttpHost('https://user.github.io/', 'https://other.github.io/image.png')).toBe(false);
+  });
+
   it('rejects non-HTTP canonical and image URLs', () => {
     expect(() => workerResultSchema.parse({ ...validResult, canonicalUrl: 'file:///etc/passwd' })).toThrow();
     expect(() => workerResultSchema.parse({ ...validResult, imageUrl: 'data:text/plain,test' })).toThrow();
+    expect(() => workerResultSchema.parse({ ...validResult, imageUrl: 'https://user:pass@example.com/a' })).toThrow();
   });
 
   it('limits failure messages and lease tokens', () => {

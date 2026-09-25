@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import processCandidate from '../lib/crawler/process';
 import type { CandidateReview, CrawlCandidate, CrawlerStore } from '../lib/crawler/store-factory';
+import { haveSameHttpHost } from '../lib/crawler/worker-contract';
 
 const claimResponseSchema = z.object({
   candidates: z.array(
@@ -61,10 +62,13 @@ async function main() {
         return result.status;
       },
       markCandidateReview: async (_id: number, review: CandidateReview) => {
+        const imageUrl =
+          review.imageUrl && haveSameHttpHost(review.canonicalUrl, review.imageUrl) ? review.imageUrl : null;
         await apiRequest('/api/crawl/worker/result', {
-          candidateId: job.id,
-          leaseToken: job.leaseToken,
           ...review,
+          candidateId: job.id,
+          imageUrl,
+          leaseToken: job.leaseToken,
         });
       },
     } as CrawlerStore;
