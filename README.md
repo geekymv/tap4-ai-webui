@@ -144,6 +144,16 @@ Use `{"action":"reject"}` to reject it.
 - Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
 
+### External Multica crawler worker
+
+For long-running processing outside Vercel, rerun `db/postgres/create_crawler.sql`, configure a separate
+`CRAWLER_WORKER_KEY` in Vercel, and deploy. Configure the Multica Runtime with `GETAITOOLS_SITE_URL`,
+`GETAITOOLS_CRAWLER_WORKER_KEY` (the same secret), and the optional `CRAWLER_LLM_*` settings. The scheduled worker runs
+`pnpm crawler:worker`; it claims at most five leased jobs through `/api/crawl/worker/claim`, submits validated review
+content to `/api/crawl/worker/result`, and reports failures to `/api/crawl/worker/fail`. Results still require approval
+at `/admin/crawl`; the worker cannot publish content. Keep the existing Vercel process cron as a fallback, or remove
+that schedule after the external worker is verified.
+
 ## Running Locally
 
 ### Installation

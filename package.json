@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "crawler:worker": "tsx scripts/crawl-worker.ts",
     "start": "next start",
     "test": "vitest run",
     "lint": "next lint --cache",
@@ -76,6 +77,7 @@
     "prettier": "3.2.5",
     "prettier-plugin-tailwindcss": "0.5.13",
     "tailwindcss": "^3.3.0",
+    "tsx": "4.19.2",
     "typescript": "^5",
     "vitest": "1.6.0"
   }

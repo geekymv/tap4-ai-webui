@@ -61,7 +61,12 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
           from crawler.candidate
           where status = 'pending'
              or (status = 'retry' and coalesce(next_retry_at, now()) <= now())
-             or (status = 'processing' and locked_at < now() - interval '15 minutes')
+             or (
+               status = 'processing' and (
+                 (worker_lease_expires_at is not null and worker_lease_expires_at < now())
+                 or (worker_lease_expires_at is null and locked_at < now() - interval '15 minutes')
+               )
+             )
           order by discovered_at asc
           limit ${Math.max(1, Math.min(limit, 20))}
           for update skip locked
@@ -69,6 +74,7 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
         update crawler.candidate as candidate
         set status = 'processing', locked_at = now(),
             attempt_count = candidate.attempt_count + 1,
+            worker_lease_hash = null, worker_lease_expires_at = null,
             updated_at = now(), error_message = null
         from picked
         where candidate.id = picked.id
@@ -128,6 +134,7 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
         set canonical_url = ${review.canonicalUrl}, category_name = ${review.categoryName},
             description = ${review.description}, detail = ${review.detail}, error_message = null,
             image_url = ${review.imageUrl}, locked_at = null, next_retry_at = null,
+            worker_lease_hash = null, worker_lease_expires_at = null,
             status = 'review', title = ${review.title}, updated_at = now()
         where id = ${id}
       `;
@@ -140,7 +147,11 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
         `;
         if (!candidate) throw new Error('candidate_not_reviewable');
         if (action === 'reject') {
-          await transaction`update crawler.candidate set status = 'rejected', updated_at = now() where id = ${id}`;
+          await transaction`
+            update crawler.candidate
+            set status = 'rejected', worker_lease_hash = null, worker_lease_expires_at = null, updated_at = now()
+            where id = ${id}
+          `;
           if (candidate.source === 'submission' && candidate.source_item_id) {
             await transaction`update submit set status = 2 where id = ${candidate.source_item_id}`;
           }
@@ -177,7 +188,11 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
             category_name = excluded.category_name
           returning name
         `;
-        await transaction`update crawler.candidate set status = 'published', updated_at = now() where id = ${id}`;
+        await transaction`
+          update crawler.candidate
+          set status = 'published', worker_lease_hash = null, worker_lease_expires_at = null, updated_at = now()
+          where id = ${id}
+        `;
         if (candidate.source === 'submission' && candidate.source_item_id) {
           await transaction`update submit set status = 1 where id = ${candidate.source_item_id}`;
         }

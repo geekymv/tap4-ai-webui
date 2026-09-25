@@ -1,7 +1,7 @@
 import classifyWebsite from './classify';
 import enrichWebsite from './enrich';
 import crawlWebsite, { CrawlDeadline } from './fetch-page';
-import { CrawlCandidate, CrawlerStore } from './store';
+import type { CrawlCandidate, CrawlerStore } from './store';
 
 type ProcessOptions = CrawlDeadline & { crawl?: typeof crawlWebsite; enrich?: typeof enrichWebsite };
 

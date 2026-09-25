@@ -126,6 +126,14 @@ SUBMIT_AUTH_KEY="xxxx"
   Groq 的 OpenAI 兼容接口，地址和模型均可调整；服务异常或输出校验失败时会回退到原始抓取内容，不阻断审核。
 - 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
 
+### Multica 外部抓取 Worker
+
+如需把耗时处理移出 Vercel，重新执行 `db/postgres/create_crawler.sql`，在 Vercel 配置独立的 `CRAWLER_WORKER_KEY` 后部署；
+在 Multica Runtime 配置 `GETAITOOLS_SITE_URL`、相同密钥的 `GETAITOOLS_CRAWLER_WORKER_KEY` 及可选的 `CRAWLER_LLM_*`。定时
+任务运行 `pnpm crawler:worker`，每次通过 `/api/crawl/worker/claim` 租约领取最多 5 条任务，向 `/api/crawl/worker/result`
+回传校验后的审核内容，失败则调用 `/api/crawl/worker/fail`。结果仍需在 `/admin/crawl` 人工审批，Worker 无权直接发布。建议
+验证外部 Worker 后再决定是否移除 Vercel process Cron，验证期间可将其保留为降级路径。
+
 ## 本地运行
 
 ### 安装

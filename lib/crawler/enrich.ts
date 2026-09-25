@@ -11,7 +11,7 @@ const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
 
 const UNSAFE_MARKDOWN_NODES = new Set(['definition', 'html', 'image', 'imageReference', 'link', 'linkReference']);
 
-function containsUnsafeMarkdown(value: string) {
+export function containsUnsafeMarkdown(value: string) {
   const tree = unified().use(remarkParse).parse(value);
   let unsafe = false;
   visit(tree, (node) => {

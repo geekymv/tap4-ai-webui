@@ -15,6 +15,8 @@ create table if not exists crawler.candidate (
   attempt_count integer not null default 0,
   next_retry_at timestamp with time zone,
   locked_at timestamp with time zone,
+  worker_lease_hash text,
+  worker_lease_expires_at timestamp with time zone,
   title text,
   description text,
   detail text,
@@ -25,6 +27,10 @@ create table if not exists crawler.candidate (
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
+
+-- Keep this script idempotent for existing crawler installations.
+alter table crawler.candidate add column if not exists worker_lease_hash text;
+alter table crawler.candidate add column if not exists worker_lease_expires_at timestamp with time zone;
 
 create index if not exists candidate_claimable_idx
   on crawler.candidate (status, next_retry_at, discovered_at)
@@ -37,6 +43,10 @@ create index if not exists candidate_source_item_idx
 create index if not exists candidate_review_idx
   on crawler.candidate (updated_at, id)
   where status = 'review';
+
+create index if not exists candidate_worker_lease_idx
+  on crawler.candidate (worker_lease_expires_at)
+  where status = 'processing' and worker_lease_expires_at is not null;
 
 create unique index if not exists web_navigation_url_unique_idx
   on public.web_navigation (url)
