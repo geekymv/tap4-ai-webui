@@ -8,6 +8,12 @@ import createCrawlerWorkerStore from '@/lib/crawler/worker-store';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function serializedCandidateId(value: unknown) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) throw new Error('invalid_candidate_id');
+  return id;
+}
+
 export async function POST(req: NextRequest) {
   if (!verifyWorkerAuthorization(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       candidates: candidates.map((candidate) => ({
         attemptCount: candidate.attempt_count,
-        id: candidate.id,
+        id: serializedCandidateId(candidate.id),
         leaseToken: candidate.leaseToken,
         url: candidate.url,
       })),

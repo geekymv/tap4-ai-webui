@@ -8,7 +8,7 @@ const claimResponseSchema = z.object({
   candidates: z.array(
     z.object({
       attemptCount: z.number().int().positive(),
-      id: z.number().int().positive(),
+      id: z.coerce.number().int().positive().safe(),
       leaseToken: z.string().min(32),
       url: z.string().url(),
     }),

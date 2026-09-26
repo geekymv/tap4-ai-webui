@@ -150,11 +150,12 @@ For long-running processing outside Vercel, rerun `db/postgres/create_crawler.sq
 `CRAWLER_WORKER_KEY` in Vercel, and deploy. Configure the Multica Runtime with only `GETAITOOLS_SITE_URL` and
 `GETAITOOLS_CRAWLER_WORKER_KEY` (the same secret); the scheduled Agent uses its own configured model, so it does not
 need `CRAWLER_LLM_*` or an OpenRouter key. It runs `pnpm crawler:agent:prepare`, reads at most three generated job files
-as untrusted source data, writes structured results under `.crawler-worker/results`, and runs
-`pnpm crawler:agent:submit`. The scripts retain the leased claim, SSRF/robots/deadline protections, output validation,
-and failure reporting. Crawler-owned URLs and titles cannot be replaced by Agent output. Results still require approval
-at `/admin/crawl`; the Agent cannot publish content. Keep the existing Vercel process cron as a fallback, or remove that
-schedule after the external worker is verified.
+as untrusted source data, writes structured results under the run-specific results directory, and runs
+`pnpm crawler:agent:submit <runId>` with the returned run ID. Unique run directories prevent overlapping schedules from
+replacing another run's files; protected runtime values are rejected from generated content. The scripts retain the
+leased claim, SSRF/robots/deadline protections, output validation, and failure reporting. Crawler-owned URLs and titles
+cannot be replaced by Agent output. Results still require approval at `/admin/crawl`; the Agent cannot publish content.
+Keep the existing Vercel process cron as a fallback, or remove that schedule after the external worker is verified.
 
 `pnpm crawler:worker` remains available for a non-Agent worker that calls a separately configured OpenAI-compatible
 provider directly.

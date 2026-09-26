@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { z } from 'zod';
 
 import { containsUnsafeMarkdown } from './enrich';
@@ -5,6 +6,19 @@ import type { ExtractedWebsite } from './extract';
 import { haveSameHttpHost } from './worker-contract';
 
 export type WorkerCategory = { name: string; title: string | null };
+
+export function getAgentRunPaths(baseDirectory: string, runId: string) {
+  const validRunId = z.string().uuid().parse(runId);
+  const workRoot = path.resolve(baseDirectory, '.crawler-worker');
+  const workDirectory = path.join(workRoot, validRunId);
+  return {
+    jobsDirectory: path.join(workDirectory, 'jobs'),
+    resultsDirectory: path.join(workDirectory, 'results'),
+    statePath: path.resolve(baseDirectory, '.crawler-worker-private', `${validRunId}.json`),
+    stateRoot: path.resolve(baseDirectory, '.crawler-worker-private'),
+    workDirectory,
+  };
+}
 
 export const agentJobSchema = z
   .object({
@@ -38,11 +52,20 @@ export const agentOutputSchema = z
 
 export type AgentOutput = z.infer<typeof agentOutputSchema>;
 
-export function parseAgentOutput(value: unknown, candidateId: number, categories: WorkerCategory[]) {
+export function parseAgentOutput(
+  value: unknown,
+  candidateId: number,
+  categories: WorkerCategory[],
+  forbiddenValues: string[] = [],
+) {
   const output = agentOutputSchema.parse(value);
   if (output.candidateId !== candidateId) throw new Error('candidateId does not match the prepared job');
   if (output.categoryName && !categories.some((category) => category.name === output.categoryName)) {
     throw new Error('categoryName is not in the allowed category list');
+  }
+  const generatedContent = `${output.description}\n${output.detail}`;
+  if (forbiddenValues.some((secret) => secret.length >= 16 && generatedContent.includes(secret))) {
+    throw new Error('generated content contains protected runtime data');
   }
   return output;
 }

@@ -11,6 +11,7 @@
 
 # external crawler agent working files
 /.crawler-worker/
+/.crawler-worker-private/
 
 # next.js
 /.next/

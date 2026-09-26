@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkerResult, parseAgentOutput } from './agent-worker';
+import { buildWorkerResult, getAgentRunPaths, parseAgentOutput } from './agent-worker';
 
 const categories = [
   { name: 'writing', title: 'Writing' },
@@ -26,7 +26,7 @@ describe('agent worker output', () => {
     );
   });
 
-  it('rejects unsafe or undersized generated content', () => {
+  it('rejects unsafe, undersized, or secret-bearing generated content', () => {
     expect(() =>
       parseAgentOutput(
         { ...validOutput, detail: `${validOutput.detail}\n[Visit](https://example.com)` },
@@ -35,6 +35,21 @@ describe('agent worker output', () => {
       ),
     ).toThrow();
     expect(() => parseAgentOutput({ ...validOutput, description: 'Too short' }, 42, categories)).toThrow();
+    const leaseToken = 'protected-lease-token-value-123456789';
+    expect(() =>
+      parseAgentOutput({ ...validOutput, detail: `${validOutput.detail}\n\n${leaseToken}` }, 42, categories, [
+        leaseToken,
+      ]),
+    ).toThrow('protected runtime data');
+  });
+
+  it('isolates concurrent runs in separate work and state paths', () => {
+    const first = getAgentRunPaths('/workspace', '9cbe6c53-1a70-4fcb-a846-98f2208b828b');
+    const second = getAgentRunPaths('/workspace', 'c8663784-71dd-48b9-9fdd-74061d106652');
+
+    expect(first.workDirectory).not.toBe(second.workDirectory);
+    expect(first.statePath).not.toBe(second.statePath);
+    expect(first.statePath).not.toContain(first.workDirectory);
   });
 
   it('keeps crawler-owned fields and drops a third-party image', () => {

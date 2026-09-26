@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 
-import { agentJobSchema, buildWorkerResult, parseAgentOutput } from '../lib/crawler/agent-worker';
+import { agentJobSchema, buildWorkerResult, getAgentRunPaths, parseAgentOutput } from '../lib/crawler/agent-worker';
 import type { ExtractedWebsite } from '../lib/crawler/extract';
 import crawlWebsite from '../lib/crawler/fetch-page';
 
@@ -10,7 +11,7 @@ const claimResponseSchema = z.object({
   candidates: z.array(
     z.object({
       attemptCount: z.number().int().positive(),
-      id: z.number().int().positive(),
+      id: z.coerce.number().int().positive().safe(),
       leaseToken: z.string().min(32),
       url: z.string().url(),
     }),
@@ -42,6 +43,7 @@ const workerKey = process.env.GETAITOOLS_CRAWLER_WORKER_KEY;
 if (!siteUrl || !workerKey) {
   throw new Error('GETAITOOLS_SITE_URL and GETAITOOLS_CRAWLER_WORKER_KEY are required');
 }
+const configuredWorkerKey = workerKey;
 const origin = new URL(siteUrl);
 if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
   throw new Error('GETAITOOLS_SITE_URL must use HTTPS');
@@ -49,10 +51,6 @@ if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
 
 const batchSize = Math.min(Math.max(Number(process.env.CRAWLER_WORKER_BATCH_SIZE) || 3, 1), 3);
 const jobTimeoutMs = Math.min(Math.max(Number(process.env.CRAWLER_WORKER_JOB_TIMEOUT_MS) || 90000, 15000), 300000);
-const workDirectory = path.resolve(process.cwd(), '.crawler-worker');
-const jobsDirectory = path.join(workDirectory, 'jobs');
-const resultsDirectory = path.join(workDirectory, 'results');
-const statePath = path.join(workDirectory, 'state.json');
 
 async function apiRequest(apiPath: string, body: unknown) {
   const response = await fetch(new URL(apiPath, origin), {
@@ -79,9 +77,11 @@ async function reportFailure(candidateId: number, leaseToken: string, message: s
 }
 
 async function prepare() {
-  await rm(workDirectory, { force: true, recursive: true });
+  const runId = randomUUID();
+  const { jobsDirectory, resultsDirectory, statePath, stateRoot } = getAgentRunPaths(process.cwd(), runId);
   await mkdir(jobsDirectory, { mode: 0o700, recursive: true });
   await mkdir(resultsDirectory, { mode: 0o700, recursive: true });
+  await mkdir(stateRoot, { mode: 0o700, recursive: true });
 
   const claimed = claimResponseSchema.parse(await apiRequest('/api/crawl/worker/claim', { limit: batchSize }));
   const state: State = { categories: claimed.categories, jobs: [] };
@@ -133,9 +133,10 @@ async function prepare() {
     `${JSON.stringify({
       claimed: claimed.candidates.length,
       failed: failures,
-      jobs: state.jobs.map((job) => `.crawler-worker/jobs/${job.candidateId}.json`),
+      jobs: state.jobs.map((job) => `.crawler-worker/${runId}/jobs/${job.candidateId}.json`),
       prepared: state.jobs.length,
-      resultsDirectory: '.crawler-worker/results',
+      resultsDirectory: `.crawler-worker/${runId}/results`,
+      runId,
     })}\n`,
   );
 }
@@ -144,7 +145,8 @@ async function readJson(filename: string) {
   return JSON.parse(await readFile(filename, 'utf8')) as unknown;
 }
 
-async function submit() {
+async function submit(runId: string) {
+  const { resultsDirectory, statePath, workDirectory } = getAgentRunPaths(process.cwd(), runId);
   const state = stateSchema.parse(await readJson(statePath));
   const results: Array<{ candidateId: number; status: string }> = [];
 
@@ -153,7 +155,10 @@ async function submit() {
     const outputPath = path.join(resultsDirectory, `${job.candidateId}.json`);
     try {
       // eslint-disable-next-line no-await-in-loop
-      const output = parseAgentOutput(await readJson(outputPath), job.candidateId, state.categories);
+      const output = parseAgentOutput(await readJson(outputPath), job.candidateId, state.categories, [
+        configuredWorkerKey,
+        job.leaseToken,
+      ]);
       const result = buildWorkerResult(job.website as ExtractedWebsite, output);
       // eslint-disable-next-line no-await-in-loop
       const responseBody = await apiRequest('/api/crawl/worker/result', {
@@ -172,14 +177,15 @@ async function submit() {
   }
 
   await rm(workDirectory, { force: true, recursive: true });
-  process.stdout.write(`${JSON.stringify({ results, submitted: results.length })}\n`);
+  await rm(statePath, { force: true });
+  process.stdout.write(`${JSON.stringify({ results, runId, submitted: results.length })}\n`);
 }
 
 const command = process.argv[2];
 let operation: (() => Promise<void>) | null = null;
 if (command === 'prepare') operation = prepare;
-if (command === 'submit') operation = submit;
-if (!operation) throw new Error('Usage: tsx scripts/crawl-agent-worker.ts <prepare|submit>');
+if (command === 'submit') operation = () => submit(process.argv[3]);
+if (!operation) throw new Error('Usage: tsx scripts/crawl-agent-worker.ts prepare | submit <run-id>');
 
 operation().catch((error) => {
   process.stderr.write(`${error instanceof Error ? error.message : 'External crawler agent worker failed'}\n`);
