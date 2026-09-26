@@ -25,6 +25,7 @@ export const agentJobSchema = z
     candidateId: z.number().int().positive(),
     canonicalUrl: z.string().url(),
     categories: z.array(z.object({ name: z.string().min(1).max(100), title: z.string().nullable() })),
+    editorialInstructions: z.string().min(1),
     originalDescription: z.string(),
     pageContent: z.string(),
     title: z.string().min(1),

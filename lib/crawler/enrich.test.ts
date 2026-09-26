@@ -54,6 +54,9 @@ describe('crawler LLM enrichment', () => {
     const body = JSON.parse(String(capturedInit?.body));
     expect(body.model).toBe('test-model');
     expect(body.messages[0].content).toContain('untrusted source material');
+    expect(body.messages[0].content).toContain('What Is It, Key Features, How to Use, Pricing, Helpful Tips');
+    expect(body.messages[0].content).toContain('highest heading level must be h3');
+    expect(body.messages[0].content).toContain('Omit any section that the source does not support');
   });
 
   it('drops a category that is unknown or below the confidence threshold', async () => {

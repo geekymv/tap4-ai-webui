@@ -133,9 +133,10 @@ Multica Runtime 只需配置 `GETAITOOLS_SITE_URL` 和相同密钥的 `GETAITOOL
 置的模型，无需 `CRAWLER_LLM_*` 或 OpenRouter Key。它先运行 `pnpm crawler:agent:prepare`，把最多 3 条租约任务抓取成不可信
 的本地 job 文件；Agent 清洗并写入本次运行专属的 results 目录后，再使用返回的运行 ID 执行
 `pnpm crawler:agent:submit <runId>`。每次运行使用独立目录，重叠调度不会覆盖其他运行文件；生成内容如果包含受保护运行时值
-会被拒绝。脚本继续负责租约、SSRF、robots.txt、截止时间、输出校验和失败回报；Agent 输出不能改写抓取器确定的 URL 和标题。
-结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。建议验证外部 Worker 后再决定是否移除 Vercel process Cron，验证期
-间可将其保留为降级路径。
+会被拒绝。清洗提示词参考 `tap4-ai-crawler` 的 SEO 模板，使用 h3 组织“是什么、功能、使用方式、价格、技巧、常见问题”，但会
+删除来源不支持的章节而不是补造内容。脚本继续负责租约、SSRF、robots.txt、截止时间、输出校验和失败回报；Agent 输出不能改写
+抓取器确定的 URL 和标题。结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。建议验证外部 Worker 后再决定是否移除
+Vercel process Cron，验证期间可将其保留为降级路径。
 
 `pnpm crawler:worker` 仍可用于不经过 Agent、直接调用单独 OpenAI 兼容模型配置的 Worker。
 

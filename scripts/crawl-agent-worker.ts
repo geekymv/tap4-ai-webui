@@ -4,6 +4,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import { agentJobSchema, buildWorkerResult, getAgentRunPaths, parseAgentOutput } from '../lib/crawler/agent-worker';
+import { makeEditorialGuidance } from '../lib/crawler/editorial-guidance';
 import type { ExtractedWebsite } from '../lib/crawler/extract';
 import crawlWebsite from '../lib/crawler/fetch-page';
 
@@ -107,6 +108,7 @@ async function prepare() {
         candidateId: candidate.id,
         canonicalUrl: website.canonicalUrl,
         categories: claimed.categories,
+        editorialInstructions: makeEditorialGuidance(claimed.categories),
         originalDescription: website.description,
         pageContent: website.detail,
         title: website.title,
