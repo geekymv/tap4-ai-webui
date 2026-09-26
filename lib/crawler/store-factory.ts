@@ -36,13 +36,23 @@ export type CandidateReview = {
 
 export type ReviewResult = { categoryName?: string; name?: string; status: 'pending' | 'published' | 'rejected' };
 
-export type ReviewQueueCandidate = CrawlCandidate & {
+export type ReviewQueueCandidate = {
+  canonical_url: string;
+  category_name: string | null;
+  description: string | null;
+  domain: string;
+  has_detail: boolean;
+  id: number;
+  image_url: string | null;
+  source: string;
   source_url: string | null;
+  title: string | null;
   updated_at: Date;
 };
 
 export interface CrawlerStore {
   claimCandidates(limit: number): Promise<CrawlCandidate[]>;
+  getReviewCandidateDetail(id: number): Promise<{ detail: string | null } | null>;
   listCategories(): Promise<Array<{ name: string; title: string | null }>>;
   listPendingSubmissions(): Promise<Array<{ id: number; url: string | null }>>;
   listReviewCandidates(offset: number, limit: number): Promise<{ items: ReviewQueueCandidate[]; total: number }>;
@@ -82,6 +92,14 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
       `;
     },
 
+    async getReviewCandidateDetail(id) {
+      const [candidate] = await sql<Array<{ detail: string | null }>>`
+        select detail from crawler.candidate
+        where id = ${id} and status = 'review'
+      `;
+      return candidate || null;
+    },
+
     async listCategories() {
       return sql<Array<{ name: string; title: string | null }>>`
         select name, title from navigation_category where del_flag = 0
@@ -102,7 +120,9 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
       const safeLimit = Math.max(1, Math.min(limit, 50));
       const [items, countRows] = await Promise.all([
         sql<ReviewQueueCandidate[]>`
-          select * from crawler.candidate
+          select id, canonical_url, domain, source, source_url, title, description,
+                 image_url, category_name, updated_at, detail is not null as has_detail
+          from crawler.candidate
           where status = 'review'
           order by updated_at asc, id asc
           offset ${safeOffset}

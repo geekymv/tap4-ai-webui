@@ -4,6 +4,7 @@ import { getReviewAuthKey, isReviewAdminAuthenticated } from '@/lib/admin/review
 import createCrawlerStore from '@/lib/crawler/store';
 
 import { login, logout, review } from './actions';
+import CandidateDetail from './CandidateDetail';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -176,14 +177,7 @@ export default async function CrawlAdminPage({
                   </a>
                 )}
                 <p className='mt-4 text-sm leading-6 text-gray-300'>{candidate.description || '暂无描述'}</p>
-                {candidate.detail && (
-                  <details className='mt-4 rounded-lg border border-white/10 bg-black/20 p-3'>
-                    <summary className='cursor-pointer text-sm text-gray-300'>查看抓取正文</summary>
-                    <pre className='mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words font-sans text-xs leading-5 text-gray-400'>
-                      {candidate.detail}
-                    </pre>
-                  </details>
-                )}
+                {candidate.has_detail && <CandidateDetail candidateId={candidate.id} />}
 
                 <form action={review} className='mt-5 space-y-4 border-t border-white/10 pt-5'>
                   <input type='hidden' name='id' value={candidate.id} />

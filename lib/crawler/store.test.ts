@@ -31,6 +31,25 @@ function storeWithMissingFinalCategory(candidateCategory: string | null) {
   return { store: createCrawlerStore(sql), transaction };
 }
 
+describe('crawler review store queries', () => {
+  it('keeps large candidate detail content out of the paginated review query', async () => {
+    const queries: string[] = [];
+    const sql = vi.fn((strings: TemplateStringsArray) => {
+      const query = strings.join(' ');
+      queries.push(query);
+      if (query.includes('count(*)')) return Promise.resolve([{ count: 0 }]);
+      return Promise.resolve([]);
+    }) as unknown as Sql;
+
+    await createCrawlerStore(sql).listReviewCandidates(0, 12);
+
+    const listQuery = queries.find((query) => query.includes('order by updated_at'));
+    expect(listQuery).toBeDefined();
+    expect(listQuery).not.toContain('select *');
+    expect(listQuery).toContain('detail is not null as has_detail');
+  });
+});
+
 describe('crawler review store category validation', () => {
   it('atomically requeues a review candidate for rewriting', async () => {
     const candidate = {
