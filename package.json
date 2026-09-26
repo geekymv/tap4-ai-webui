@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "crawler:agent:prepare": "tsx scripts/crawl-agent-worker.ts prepare",
+    "crawler:agent:submit": "tsx scripts/crawl-agent-worker.ts submit",
     "crawler:worker": "tsx scripts/crawl-worker.ts",
     "start": "next start",
     "test": "vitest run",
