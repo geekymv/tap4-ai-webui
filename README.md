@@ -129,10 +129,11 @@ SUBMIT_AUTH_KEY="xxxx"
 results.**
 
 Crawler results are not published automatically. Open `/admin/crawl` and sign in with `REVIEW_AUTH_KEY` to inspect
-candidates, override categories, and approve or reject them. The admin session uses a short-lived signed HttpOnly
-cookie; database credentials and the review key are not sent back to the browser. You can also approve a candidate with
-`POST /api/crawl/review/{id}`, an `Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`.
-Use `{"action":"reject"}` to reject it.
+candidates, override categories, approve or reject them, or requeue a review candidate for fresh crawling and cleanup
+with the latest prompt. The admin session uses a short-lived signed HttpOnly cookie; database credentials and the review
+key are not sent back to the browser. You can also approve a candidate with `POST /api/crawl/review/{id}`, an
+`Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
+reject it or `{"action":"rewrite"}` to return a review candidate to the processing queue.
 
 - The checked-in schedule is compatible with Vercel Hobby: discovery runs daily at 00:00 UTC and processing runs daily
   at 01:00 UTC. For larger queues, upgrade for hourly processing or invoke `/api/cron/process` manually or from an

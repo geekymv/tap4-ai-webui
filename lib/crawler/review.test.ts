@@ -23,6 +23,19 @@ describe('reviewCandidate', () => {
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
   });
 
+  it('requeues a review candidate for rewriting', async () => {
+    let receivedAction: string | undefined;
+    const store = {
+      reviewCandidate: async (_id: number, action: string) => {
+        receivedAction = action;
+        return { status: 'pending' as const };
+      },
+    } as unknown as CrawlerStore;
+
+    await expect(reviewCandidate(store, 1, 'rewrite')).resolves.toEqual({ status: 'pending' });
+    expect(receivedAction).toBe('rewrite');
+  });
+
   it('propagates transactional state update failures', async () => {
     const store = {
       reviewCandidate: async () => {

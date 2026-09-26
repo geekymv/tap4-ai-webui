@@ -18,6 +18,24 @@ describe('crawler review API', () => {
     mocks.reviewCandidate.mockRejectedValue(new Error('invalid_category'));
   });
 
+  it('allows an authenticated review candidate to be requeued for rewriting', async () => {
+    mocks.reviewCandidate.mockResolvedValue({ status: 'pending' });
+    const request = new NextRequest('http://localhost/api/crawl/review/1', {
+      body: JSON.stringify({ action: 'rewrite' }),
+      headers: {
+        authorization: 'Bearer test-key',
+        'content-type': 'application/json',
+      },
+      method: 'POST',
+    });
+
+    const response = await POST(request, { params: { id: '1' } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: 'pending' });
+    expect(mocks.reviewCandidate).toHaveBeenCalledWith(mocks.store, 1, 'rewrite', undefined);
+  });
+
   it('rejects an unknown category instead of publishing it', async () => {
     const request = new NextRequest('http://localhost/api/crawl/review/1', {
       body: JSON.stringify({ action: 'approve', categoryName: 'internal-only' }),

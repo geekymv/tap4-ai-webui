@@ -34,7 +34,7 @@ export type CandidateReview = {
   title: string;
 };
 
-export type ReviewResult = { categoryName?: string; name?: string; status: 'published' | 'rejected' };
+export type ReviewResult = { categoryName?: string; name?: string; status: 'pending' | 'published' | 'rejected' };
 
 export type ReviewQueueCandidate = CrawlCandidate & {
   source_url: string | null;
@@ -48,7 +48,7 @@ export interface CrawlerStore {
   listReviewCandidates(offset: number, limit: number): Promise<{ items: ReviewQueueCandidate[]; total: number }>;
   markCandidateFailed(candidate: CrawlCandidate, message: string): Promise<'retry' | 'failed'>;
   markCandidateReview(id: number, review: CandidateReview): Promise<void>;
-  reviewCandidate(id: number, action: 'approve' | 'reject', categoryName?: string): Promise<ReviewResult>;
+  reviewCandidate(id: number, action: 'approve' | 'reject' | 'rewrite', categoryName?: string): Promise<ReviewResult>;
   upsertCandidates(rows: CandidateInput[]): Promise<void>;
 }
 
@@ -146,6 +146,16 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
           select * from crawler.candidate where id = ${id} and status = 'review' for update
         `;
         if (!candidate) throw new Error('candidate_not_reviewable');
+        if (action === 'rewrite') {
+          await transaction`
+            update crawler.candidate
+            set status = 'pending', attempt_count = 0, error_message = null,
+                locked_at = null, next_retry_at = null, worker_lease_hash = null,
+                worker_lease_expires_at = null, updated_at = now()
+            where id = ${id}
+          `;
+          return { status: 'pending' as const };
+        }
         if (action === 'reject') {
           await transaction`
             update crawler.candidate

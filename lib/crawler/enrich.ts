@@ -1,25 +1,12 @@
-import remarkParse from 'remark-parse';
-import { unified } from 'unified';
-import { visit } from 'unist-util-visit';
 import { z } from 'zod';
 
 import { makeEditorialGuidance } from './editorial-guidance';
 import { ExtractedWebsite } from './extract';
+import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
 
 const DEFAULT_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
-
-const UNSAFE_MARKDOWN_NODES = new Set(['definition', 'html', 'image', 'imageReference', 'link', 'linkReference']);
-
-export function containsUnsafeMarkdown(value: string) {
-  const tree = unified().use(remarkParse).parse(value);
-  let unsafe = false;
-  visit(tree, (node) => {
-    if (UNSAFE_MARKDOWN_NODES.has(node.type)) unsafe = true;
-  });
-  return unsafe;
-}
 
 const enrichmentSchema = z.object({
   categoryConfidence: z.number().min(0).max(1),
@@ -29,13 +16,16 @@ const enrichmentSchema = z.object({
     .trim()
     .min(40)
     .max(600)
-    .refine((value) => !/[\r\n]/.test(value), 'Description must be plain text'),
+    .refine((value) => !/[\r\n]/.test(value), 'Description must be plain text')
+    .refine((value) => !containsSensitiveOutput(value), 'Description must not contain URLs or secrets'),
   detail: z
     .string()
     .trim()
     .min(200)
     .max(15000)
-    .refine((value) => !containsUnsafeMarkdown(value), 'Detail must not contain links, images, or HTML'),
+    .refine((value) => !containsUnsafeMarkdown(value), 'Detail must not contain links, images, or HTML')
+    .refine((value) => !containsSensitiveOutput(value), 'Detail must not contain URLs or secrets')
+    .refine((value) => !hasShallowMarkdownHeading(value), 'Detail headings must start at h3'),
 });
 
 type Category = { name: string; title: string | null };

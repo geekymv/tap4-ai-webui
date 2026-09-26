@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { containsUnsafeMarkdown } from './enrich';
+import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
 
 function parsedHttpUrl(value: string) {
   const url = new URL(value);
@@ -35,13 +35,20 @@ export const workerResultSchema = candidateLeaseSchema
       .max(2048)
       .refine(parsedHttpUrl, 'canonicalUrl must be an HTTP URL without credentials'),
     categoryName: z.string().min(1).max(100).nullable(),
-    description: z.string().trim().min(1).max(600),
+    description: z
+      .string()
+      .trim()
+      .min(1)
+      .max(600)
+      .refine((value) => !containsSensitiveOutput(value), 'description must not contain URLs or secrets'),
     detail: z
       .string()
       .trim()
       .min(1)
       .max(15000)
-      .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML'),
+      .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML')
+      .refine((value) => !containsSensitiveOutput(value), 'detail must not contain URLs or secrets')
+      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3'),
     imageUrl: z
       .string()
       .url()

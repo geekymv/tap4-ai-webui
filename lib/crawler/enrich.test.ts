@@ -39,7 +39,7 @@ describe('crawler LLM enrichment', () => {
         description:
           'Example is an AI writing assistant that helps product teams turn structured briefs into launch content.',
         detail:
-          '## Overview\n\nExample helps product teams prepare written launch material from structured briefs while keeping the supplied product facts central to each draft.\n\n## Key Features\n\n- Drafts release notes from briefs\n- Produces product documentation\n- Creates launch copy for product teams\n\n## Use Cases\n\nTeams can prepare consistent release communication and documentation.',
+          '### Overview\n\nExample helps product teams prepare written launch material from structured briefs while keeping the supplied product facts central to each draft.\n\n### Key Features\n\n- Drafts release notes from briefs\n- Produces product documentation\n- Creates launch copy for product teams\n\n### Use Cases\n\nTeams can prepare consistent release communication and documentation.',
       });
     });
 
@@ -50,7 +50,7 @@ describe('crawler LLM enrichment', () => {
     });
 
     expect(result).toMatchObject({ categoryName: 'writing' });
-    expect(result?.detail).toContain('## Key Features');
+    expect(result?.detail).toContain('### Key Features');
     const body = JSON.parse(String(capturedInit?.body));
     expect(body.model).toBe('test-model');
     expect(body.messages[0].content).toContain('untrusted source material');
@@ -66,7 +66,7 @@ describe('crawler LLM enrichment', () => {
         categoryName: 'internal-only',
         description: 'Example is an AI writing assistant that prepares launch content from supplied product briefs.',
         detail:
-          '## Overview\n\nExample prepares launch content from structured product briefs and keeps the generated material focused on the facts supplied by product teams.\n\n## Supported Uses\n\nIt can draft release notes, product documentation, and launch copy for product teams that need consistent written communication.\n\n## Workflow\n\nTeams provide a brief and use the resulting draft in their existing review process.',
+          '### Overview\n\nExample prepares launch content from structured product briefs and keeps the generated material focused on the facts supplied by product teams.\n\n### Supported Uses\n\nIt can draft release notes, product documentation, and launch copy for product teams that need consistent written communication.\n\n### Workflow\n\nTeams provide a brief and use the resulting draft in their existing review process.',
       }),
     );
 
@@ -88,7 +88,7 @@ describe('crawler LLM enrichment', () => {
         categoryConfidence: 0.9,
         categoryName: 'writing',
         description: 'Example is an AI writing assistant that prepares launch content from supplied product briefs.',
-        detail: `## Overview\n\n${'Factual product information. '.repeat(8)}\n\n${unsafeMarkdown}`,
+        detail: `### Overview\n\n${'Factual product information. '.repeat(8)}\n\n${unsafeMarkdown}`,
       }),
     );
 
@@ -99,6 +99,28 @@ describe('crawler LLM enrichment', () => {
         fetcher: fetcher as typeof fetch,
       }),
     ).rejects.toThrow('Detail must not contain links, images, or HTML');
+  });
+
+  it.each([
+    ['plain URL', '### Overview\n\nFactual product information with https://evil.example embedded in text.'],
+    ['shallow heading', '## Overview\n\nFactual product information that uses a disallowed heading level.'],
+  ])('rejects %s in provider output', async (_name, detail) => {
+    const fetcher = vi.fn(async () =>
+      providerResponse({
+        categoryConfidence: 0.9,
+        categoryName: 'writing',
+        description: 'Example is an AI writing assistant that prepares launch content from supplied product briefs.',
+        detail: `${detail}\n\n${'Additional source-supported product information. '.repeat(5)}`,
+      }),
+    );
+
+    await expect(
+      enrichWebsite(website, categories, {
+        deadline: Date.now() + 1000,
+        env,
+        fetcher: fetcher as typeof fetch,
+      }),
+    ).rejects.toThrow();
   });
 
   it('uses a provider timeout before the hard deadline to reserve persistence time', async () => {

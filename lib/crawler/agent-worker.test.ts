@@ -11,7 +11,7 @@ const validOutput = {
   categoryName: 'writing',
   description: 'A factual description of this AI writing tool and its supported workflow.',
   detail:
-    '## Overview\n\nThis tool helps users draft and revise text from supplied prompts while keeping the editing workflow in one place.\n\n## Key Features\n\n- Draft generation from user instructions\n- Revision support for existing text\n- A focused workspace for reviewing generated copy',
+    '### Overview\n\nThis tool helps users draft and revise text from supplied prompts while keeping the editing workflow in one place.\n\n### Key Features\n\n- Draft generation from user instructions\n- Revision support for existing text\n- A focused workspace for reviewing generated copy',
 };
 
 describe('agent worker output', () => {
@@ -35,6 +35,16 @@ describe('agent worker output', () => {
       ),
     ).toThrow();
     expect(() => parseAgentOutput({ ...validOutput, description: 'Too short' }, 42, categories)).toThrow();
+    expect(() =>
+      parseAgentOutput({ ...validOutput, detail: `${validOutput.detail}\n\nhttps://evil.example` }, 42, categories),
+    ).toThrow('URLs or secrets');
+    expect(() =>
+      parseAgentOutput(
+        { ...validOutput, detail: validOutput.detail.replace('### Overview', '## Overview') },
+        42,
+        categories,
+      ),
+    ).toThrow('headings must start at h3');
     const leaseToken = 'protected-lease-token-value-123456789';
     expect(() =>
       parseAgentOutput({ ...validOutput, detail: `${validOutput.detail}\n\n${leaseToken}` }, 42, categories, [

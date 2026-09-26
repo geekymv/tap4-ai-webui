@@ -117,7 +117,8 @@ SUBMIT_AUTH_KEY="xxxx"
 
 抓取结果不会自动发布。访问 `/admin/crawl`，使用 `REVIEW_AUTH_KEY` 登录后可查看候选、调整分类并批准或拒绝；管理员会话使用
 短期签名的 HttpOnly Cookie，数据库连接和审核密钥不会发送到前端。也可直接调用 `POST /api/crawl/review/{id}`，携带
-`Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`。
+`Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`，需要使用最新
+提示词重新抓取和清洗时传入 `{"action":"rewrite"}`。审核页面也提供“重新生成”按钮。
 
 - 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复每小时
   消费，或手动/通过外部调度器调用 `/api/cron/process`。

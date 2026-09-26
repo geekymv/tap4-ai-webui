@@ -1,6 +1,6 @@
 import { CrawlerStore, ReviewResult } from './store';
 
-export type ReviewAction = 'approve' | 'reject';
+export type ReviewAction = 'approve' | 'reject' | 'rewrite';
 export default async function reviewCandidate(
   store: CrawlerStore,
   candidateId: number,

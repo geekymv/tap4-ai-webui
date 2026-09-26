@@ -14,8 +14,8 @@ export async function POST(req: NextRequest, { params: { id } }: { params: { id:
 
   try {
     const body = (await req.json()) as { action?: ReviewAction; categoryName?: string };
-    if (!body.action || !['approve', 'reject'].includes(body.action)) {
-      return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 });
+    if (!body.action || !['approve', 'reject', 'rewrite'].includes(body.action)) {
+      return NextResponse.json({ error: 'action must be approve, reject, or rewrite' }, { status: 400 });
     }
     const candidateId = Number(id);
     if (!Number.isSafeInteger(candidateId) || candidateId < 1) {

@@ -28,6 +28,7 @@ const errors: Record<string, string> = {
 const results: Record<string, string> = {
   published: '候选已批准并发布。',
   rejected: '候选已拒绝。',
+  'rewrite-queued': '候选已加入重新抓取和清洗队列。',
 };
 
 function Login({ error }: { error?: string }) {
@@ -202,7 +203,7 @@ export default async function CrawlAdminPage({
                       ))}
                     </select>
                   </div>
-                  <div className='grid grid-cols-2 gap-3'>
+                  <div className='grid gap-3 sm:grid-cols-3'>
                     <button
                       type='submit'
                       name='action'
@@ -210,6 +211,14 @@ export default async function CrawlAdminPage({
                       className='h-11 rounded-lg border border-red-400/30 bg-red-500/10 font-medium text-red-200 transition hover:bg-red-500/20'
                     >
                       拒绝
+                    </button>
+                    <button
+                      type='submit'
+                      name='action'
+                      value='rewrite'
+                      className='h-11 rounded-lg border border-amber-400/30 bg-amber-500/10 font-medium text-amber-100 transition hover:bg-amber-500/20'
+                    >
+                      重新生成
                     </button>
                     <button
                       type='submit'

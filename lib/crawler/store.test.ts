@@ -32,6 +32,41 @@ function storeWithMissingFinalCategory(candidateCategory: string | null) {
 }
 
 describe('crawler review store category validation', () => {
+  it('atomically requeues a review candidate for rewriting', async () => {
+    const candidate = {
+      attempt_count: 2,
+      canonical_url: 'https://example.com/',
+      category_name: 'writing',
+      description: 'Existing description.',
+      detail: '### Existing detail',
+      domain: 'example.com',
+      id: 1,
+      image_url: null,
+      source: 'github',
+      source_item_id: null,
+      status: 'review',
+      title: 'Example',
+      url: 'https://example.com/',
+    } as CrawlCandidate;
+    let requeueQuery = '';
+    const transaction = vi.fn((strings: TemplateStringsArray) => {
+      const query = strings.join(' ');
+      if (query.includes('select * from crawler.candidate')) return Promise.resolve([candidate]);
+      if (query.includes("set status = 'pending'")) {
+        requeueQuery = query;
+        return Promise.resolve([]);
+      }
+      throw new Error(`Unexpected query: ${query}`);
+    });
+    const sql = {
+      begin: async (callback: (value: typeof transaction) => Promise<unknown>) => callback(transaction),
+    } as unknown as Sql;
+
+    await expect(createCrawlerStore(sql).reviewCandidate(1, 'rewrite')).resolves.toEqual({ status: 'pending' });
+    expect(requeueQuery).toContain('attempt_count = 0');
+    expect(requeueQuery).toContain('worker_lease_hash = null');
+  });
+
   it('rejects a stale automatic category before publishing', async () => {
     const { store, transaction } = storeWithMissingFinalCategory('removed-category');
 

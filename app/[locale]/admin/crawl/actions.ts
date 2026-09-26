@@ -37,7 +37,7 @@ export async function review(formData: FormData) {
   const id = Number(formData.get('id'));
   const requestedAction = formData.get('action');
   const categoryValue = formData.get('categoryName');
-  if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject'].includes(String(requestedAction))) {
+  if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject', 'rewrite'].includes(String(requestedAction))) {
     redirect(`${ADMIN_PATH}?error=invalid-request`);
   }
 
@@ -61,5 +61,8 @@ export async function review(formData: FormData) {
     redirect(`${ADMIN_PATH}?error=${code}`);
   }
 
-  redirect(`${ADMIN_PATH}?result=${action === 'approve' ? 'published' : 'rejected'}`);
+  let resultCode = 'rewrite-queued';
+  if (action === 'approve') resultCode = 'published';
+  if (action === 'reject') resultCode = 'rejected';
+  redirect(`${ADMIN_PATH}?result=${resultCode}`);
 }

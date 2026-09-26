@@ -7,7 +7,7 @@ const validResult = {
   canonicalUrl: 'https://example.com/',
   categoryName: 'writing',
   description: 'A factual summary.',
-  detail: '## Overview\n\nA factual product overview without remote content.',
+  detail: '### Overview\n\nA factual product overview without remote content.',
   imageUrl: null,
   leaseToken: 'a'.repeat(43),
   title: 'Example',
@@ -31,6 +31,18 @@ describe('external crawler worker contract', () => {
     expect(() => workerResultSchema.parse({ ...validResult, detail })).toThrow(
       'detail must not contain links, images, or HTML',
     );
+  });
+
+  it('rejects shallow headings and plain-text sensitive output', () => {
+    expect(() => workerResultSchema.parse({ ...validResult, detail: '## Overview\n\nUnsafe heading depth.' })).toThrow(
+      'detail headings must start at h3',
+    );
+    expect(() =>
+      workerResultSchema.parse({ ...validResult, description: 'Contact admin@example.com for this product.' }),
+    ).toThrow('description must not contain URLs or secrets');
+    expect(() =>
+      workerResultSchema.parse({ ...validResult, detail: '### Overview\n\nVisit https://evil.example for details.' }),
+    ).toThrow('detail must not contain URLs or secrets');
   });
 
   it('only treats exact or www host variants as the same source', () => {

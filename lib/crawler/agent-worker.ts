@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { z } from 'zod';
 
-import { containsUnsafeMarkdown } from './enrich';
 import type { ExtractedWebsite } from './extract';
+import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
 import { haveSameHttpHost } from './worker-contract';
 
 export type WorkerCategory = { name: string; title: string | null };
@@ -41,13 +41,16 @@ export const agentOutputSchema = z
       .trim()
       .min(40)
       .max(600)
-      .refine((value) => !/[\r\n]/.test(value), 'description must be plain text'),
+      .refine((value) => !/[\r\n]/.test(value), 'description must be plain text')
+      .refine((value) => !containsSensitiveOutput(value), 'description must not contain URLs or secrets'),
     detail: z
       .string()
       .trim()
       .min(200)
       .max(15000)
-      .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML'),
+      .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML')
+      .refine((value) => !containsSensitiveOutput(value), 'detail must not contain URLs or secrets')
+      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3'),
   })
   .strict();
 
