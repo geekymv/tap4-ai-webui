@@ -56,11 +56,12 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 ### Configure the built-in crawler
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
-queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline, observes
-robots.txt, extracts metadata and content, and leaves results in `review` state. Execute
-`db/postgres/create_crawler.sql` before enabling the cron jobs. Existing deployments should rerun this idempotent script
-to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL
-transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
+queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline. For each
+website it fetches the entry page and up to two selected same-origin product, feature, pricing, use-case, or
+documentation pages by default, observes robots.txt, combines their metadata and content, and leaves results in `review`
+state. Execute `db/postgres/create_crawler.sql` before enabling the cron jobs. Existing deployments should rerun this
+idempotent script to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and
+portable PostgreSQL transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
@@ -107,6 +108,8 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWL_PAGES_PER_SITE="3"
+CRAWL_ENRICHMENT_RESERVE_MS="8000"
 
 # Optional OpenAI-compatible LLM enrichment (Groq defaults)
 CRAWLER_LLM_ENABLED="false"
@@ -151,14 +154,15 @@ For long-running processing outside Vercel, rerun `db/postgres/create_crawler.sq
 `CRAWLER_WORKER_KEY` in Vercel, and deploy. Configure the Multica Runtime with only `GETAITOOLS_SITE_URL` and
 `GETAITOOLS_CRAWLER_WORKER_KEY` (the same secret); the scheduled Agent uses its own configured model, so it does not
 need `CRAWLER_LLM_*` or an OpenRouter key. It runs `pnpm crawler:agent:prepare`, reads at most three generated job files
-as untrusted source data, writes structured results under the run-specific results directory, and runs
-`pnpm crawler:agent:submit <runId>` with the returned run ID. Unique run directories prevent overlapping schedules from
-replacing another run's files; protected runtime values are rejected from generated content. Cleanup follows the
-`tap4-ai-crawler` SEO template (what it is, features, usage, pricing, tips, and FAQs), uses h3 headings, and omits every
-section not supported by the source instead of inventing content. The scripts retain the leased claim,
-SSRF/robots/deadline protections, output validation, and failure reporting. Crawler-owned URLs and titles cannot be
-replaced by Agent output. Results still require approval at `/admin/crawl`; the Agent cannot publish content. Keep the
-existing Vercel process cron as a fallback, or remove that schedule after the external worker is verified.
+as untrusted source data, with each job combining up to three high-value pages from one site by default. It writes
+structured results under the run-specific results directory, and runs `pnpm crawler:agent:submit <runId>` with the
+returned run ID. Unique run directories prevent overlapping schedules from replacing another run's files; protected
+runtime values are rejected from generated content. Cleanup follows the `tap4-ai-crawler` SEO template (what it is,
+features, usage, pricing, tips, and FAQs), uses h3 headings, and omits every section not supported by the source instead
+of inventing content. The scripts retain the leased claim, SSRF/robots/deadline protections, output validation, and
+failure reporting. Crawler-owned URLs and titles cannot be replaced by Agent output. Results still require approval at
+`/admin/crawl`; the Agent cannot publish content. Keep the existing Vercel process cron as a fallback, or remove that
+schedule after the external worker is verified.
 
 `pnpm crawler:worker` remains available for a non-Agent worker that calls a separately configured OpenAI-compatible
 provider directly.
@@ -214,6 +218,8 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWL_PAGES_PER_SITE="3"
+CRAWL_ENRICHMENT_RESERVE_MS="8000"
 CRAWLER_LLM_ENABLED="false"
 CRAWLER_LLM_API_KEY=""
 CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"

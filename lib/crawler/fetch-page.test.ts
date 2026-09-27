@@ -2,7 +2,7 @@ import { createServer, RequestListener, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CrawlDeadlineError, fetchText } from './fetch-page';
+import crawlWebsite, { CrawlDeadlineError, fetchText } from './fetch-page';
 
 const servers: Server[] = [];
 
@@ -27,6 +27,53 @@ afterEach(async () => {
 });
 
 const localTarget = async () => ({ address: '127.0.0.1', family: 4 });
+
+describe('multi-page website crawling', () => {
+  it('fetches selected same-origin pages and reuses robots.txt', async () => {
+    const requested: string[] = [];
+    const port = await listen((request, response) => {
+      const requestUrl = request.url || '/';
+      requested.push(requestUrl);
+      response.setHeader('content-type', requestUrl === '/robots.txt' ? 'text/plain' : 'text/html');
+      if (requestUrl === '/robots.txt') {
+        response.end('User-agent: *\nAllow: /');
+        return;
+      }
+      if (requestUrl === '/') {
+        response.end(`<title>Example AI</title>
+          <meta name="description" content="An AI product for teams.">
+          <main>Build useful content for product teams with a focused AI workflow.</main>
+          <a href="/features">Features</a><a href="/pricing">Pricing</a>
+          <a href="/login">Login</a><a href="https://other.example/about">External</a>`);
+        return;
+      }
+      if (requestUrl === '/features') {
+        response.end(
+          '<title>Features</title><meta name="description" content="Product features."><main>Drafting, editing, and team review features.</main>',
+        );
+        return;
+      }
+      if (requestUrl === '/pricing') {
+        response.end(
+          '<title>Pricing</title><meta name="description" content="Pricing information."><main>Free trial and paid team plans are available.</main>',
+        );
+        return;
+      }
+      response.writeHead(404).end();
+    });
+
+    const website = await crawlWebsite(`http://pages.test:${port}/`, {
+      deadline: Date.now() + 15000,
+      pagesPerSite: 3,
+      resolveTarget: localTarget,
+    });
+
+    expect(website.detail).toContain('Drafting, editing, and team review features');
+    expect(website.detail).toContain('Free trial and paid team plans');
+    expect(requested.filter((path) => path === '/robots.txt')).toHaveLength(1);
+    expect(requested).not.toContain('/login');
+  });
+});
 
 describe('absolute crawler deadline', () => {
   it('destroys a response that keeps dripping data before the inactivity timeout', async () => {

@@ -2,7 +2,7 @@ import { ClientRequest, request as httpRequest, IncomingMessage } from 'node:htt
 import { request as httpsRequest } from 'node:https';
 import robotsParser from 'robots-parser';
 
-import { extractWebsite } from './extract';
+import { combineWebsitePages, extractWebsite, selectInternalContentLinks } from './extract';
 import { normalizeUrl } from './normalize';
 import { createPinnedLookup, resolveSafeTarget } from './url-safety';
 
@@ -13,6 +13,7 @@ type SafeTarget = Awaited<ReturnType<typeof resolveSafeTarget>>;
 
 export type CrawlDeadline = {
   deadline: number;
+  pagesPerSite?: number;
   signal?: AbortSignal;
   resolveTarget?: (url: string) => Promise<SafeTarget>;
 };
@@ -156,24 +157,69 @@ export async function fetchText(
   });
 }
 
-async function assertRobotsAllowed(pageUrl: string, options: CrawlDeadline) {
-  const robotsUrl = `${new URL(pageUrl).origin}/robots.txt`;
-  try {
-    const { text } = await fetchText(robotsUrl, 'text/plain', options);
-    if (!robotsParser(robotsUrl, text).isAllowed(pageUrl, USER_AGENT)) {
-      throw new Error('robots.txt does not allow this page to be crawled');
-    }
-  } catch (error) {
-    if (error instanceof CrawlDeadlineError || options.signal?.aborted) throw error;
-    if (error instanceof Error && error.message.includes('does not allow')) throw error;
+type RobotsPolicy = ReturnType<typeof robotsParser> | null;
+
+async function assertRobotsAllowed(
+  pageUrl: string,
+  options: CrawlDeadline,
+  policies: Map<string, Promise<RobotsPolicy>>,
+) {
+  const { origin } = new URL(pageUrl);
+  const robotsUrl = `${origin}/robots.txt`;
+  let policyPromise = policies.get(origin);
+  if (!policyPromise) {
+    policyPromise = fetchText(robotsUrl, 'text/plain', options)
+      .then(({ text }) => robotsParser(robotsUrl, text))
+      .catch((error) => {
+        if (error instanceof CrawlDeadlineError || options.signal?.aborted) throw error;
+        return null;
+      });
+    policies.set(origin, policyPromise);
+  }
+  const policy = await policyPromise;
+  if (policy && !policy.isAllowed(pageUrl, USER_AGENT)) {
+    throw new Error('robots.txt does not allow this page to be crawled');
   }
 }
 
+function boundedInteger(value: number | string | undefined, fallback: number, maximum: number) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maximum);
+}
+
 export default async function crawlWebsite(input: string, options?: CrawlDeadline) {
-  const timeoutMs = Number(process.env.CRAWL_REQUEST_TIMEOUT_MS) || 7000;
+  const timeoutMs = boundedInteger(process.env.CRAWL_REQUEST_TIMEOUT_MS, 7000, 30000);
   const crawlOptions = options || { deadline: Date.now() + timeoutMs };
+  const pagesPerSite = boundedInteger(crawlOptions.pagesPerSite || process.env.CRAWL_PAGES_PER_SITE, 3, 5);
+  const reserveMs = boundedInteger(process.env.CRAWL_ENRICHMENT_RESERVE_MS, 8000, 30000);
+  const policies = new Map<string, Promise<RobotsPolicy>>();
   const url = normalizeUrl(input);
-  await assertRobotsAllowed(url, crawlOptions);
+  await assertRobotsAllowed(url, crawlOptions, policies);
   const response = await fetchText(url, 'text/html,application/xhtml+xml', crawlOptions);
-  return extractWebsite(response.text, response.url);
+  const homepage = extractWebsite(response.text, response.url);
+  const websiteOrigin = new URL(response.url).origin;
+  const links = selectInternalContentLinks(response.text, response.url, pagesPerSite - 1);
+  const supplementalPages = [];
+
+  for (let index = 0; index < links.length; index += 1) {
+    const availableMs = crawlOptions.deadline - Date.now() - reserveMs;
+    if (availableMs < 1000 || crawlOptions.signal?.aborted) break;
+    const pageOptions = { ...crawlOptions, deadline: Date.now() + Math.min(timeoutMs, availableMs) };
+    try {
+      // Keep requests sequential to avoid placing unexpected load on third-party sites.
+      // eslint-disable-next-line no-await-in-loop
+      await assertRobotsAllowed(links[index], pageOptions, policies);
+      // eslint-disable-next-line no-await-in-loop
+      const pageResponse = await fetchText(links[index], 'text/html,application/xhtml+xml', pageOptions);
+      if (new URL(pageResponse.url).origin === websiteOrigin) {
+        supplementalPages.push(extractWebsite(pageResponse.text, pageResponse.url));
+      }
+    } catch (error) {
+      if (crawlOptions.signal?.aborted || Date.now() >= crawlOptions.deadline) throw error;
+      // A missing, blocked, malformed, or slow supporting page must not discard a valid homepage.
+    }
+  }
+
+  return combineWebsitePages(homepage, supplementalPages);
 }

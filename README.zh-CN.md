@@ -56,9 +56,10 @@
 ### 配置内置抓取器
 
 每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每日消费任务以 2 条受控并发，并
-在共享的 42 秒绝对时限内抓取候选，遵守 robots.txt 并提取 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行
-`db/postgres/create_crawler.sql`；已有部署也应重新执行一次该幂等脚本，以创建管理员审核列表索引。抓取器仅通过服务端
-`DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、RLS、Data API 或数据库 RPC 函数。
+在共享的 42 秒绝对时限内抓取候选。每个网站默认抓取入口页以及最多 2 个同源的功能、产品、价格、使用案例或文档页，逐页遵守
+robots.txt，并合并 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行 `db/postgres/create_crawler.sql`；已有部署也
+应重新执行一次该幂等脚本，以创建管理员审核列表索引。抓取器仅通过服务端 `DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，
+不依赖 Supabase Auth、RLS、Data API 或数据库 RPC 函数。
 
 ### 创建Supabase数据库及执行sql脚本
 
@@ -95,6 +96,8 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWL_PAGES_PER_SITE="3"
+CRAWL_ENRICHMENT_RESERVE_MS="8000"
 
 # 可选的 OpenAI 兼容 LLM 内容增强（默认配置为 Groq）
 CRAWLER_LLM_ENABLED="false"
@@ -132,12 +135,12 @@ SUBMIT_AUTH_KEY="xxxx"
 如需把耗时处理移出 Vercel，重新执行 `db/postgres/create_crawler.sql`，在 Vercel 配置独立的 `CRAWLER_WORKER_KEY` 后部署；
 Multica Runtime 只需配置 `GETAITOOLS_SITE_URL` 和相同密钥的 `GETAITOOLS_CRAWLER_WORKER_KEY`。定时 Agent 直接使用自身已配
 置的模型，无需 `CRAWLER_LLM_*` 或 OpenRouter Key。它先运行 `pnpm crawler:agent:prepare`，把最多 3 条租约任务抓取成不可信
-的本地 job 文件；Agent 清洗并写入本次运行专属的 results 目录后，再使用返回的运行 ID 执行
-`pnpm crawler:agent:submit <runId>`。每次运行使用独立目录，重叠调度不会覆盖其他运行文件；生成内容如果包含受保护运行时值
-会被拒绝。清洗提示词参考 `tap4-ai-crawler` 的 SEO 模板，使用 h3 组织“是什么、功能、使用方式、价格、技巧、常见问题”，但会
-删除来源不支持的章节而不是补造内容。脚本继续负责租约、SSRF、robots.txt、截止时间、输出校验和失败回报；Agent 输出不能改写
-抓取器确定的 URL 和标题。结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。建议验证外部 Worker 后再决定是否移除
-Vercel process Cron，验证期间可将其保留为降级路径。
+的本地 job 文件；每条任务默认合并同一网站最多 3 个高价值页面。Agent 清洗并写入本次运行专属的 results 目录后，再使用返回
+的运行 ID 执行 `pnpm crawler:agent:submit <runId>`。每次运行使用独立目录，重叠调度不会覆盖其他运行文件；生成内容如果包含
+受保护运行时值会被拒绝。清洗提示词参考 `tap4-ai-crawler` 的 SEO 模板，使用 h3 组织“是什么、功能、使用方式、价格、技巧、
+常见问题”，但会删除来源不支持的章节而不是补造内容。脚本继续负责租约、SSRF、robots.txt、截止时间、输出校验和失败回
+报；Agent 输出不能改写抓取器确定的 URL 和标题。结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。建议验证外部
+Worker 后再决定是否移除 Vercel process Cron，验证期间可将其保留为降级路径。
 
 `pnpm crawler:worker` 仍可用于不经过 Agent、直接调用单独 OpenAI 兼容模型配置的 Worker。
 
@@ -195,6 +198,8 @@ DISCOVERY_GITHUB_TOPICS="ai,llm,generative-ai"
 CRAWL_BATCH_SIZE="5"
 CRAWL_CONCURRENCY="2"
 CRAWL_REQUEST_TIMEOUT_MS="7000"
+CRAWL_PAGES_PER_SITE="3"
+CRAWL_ENRICHMENT_RESERVE_MS="8000"
 CRAWLER_LLM_ENABLED="false"
 CRAWLER_LLM_API_KEY=""
 CRAWLER_LLM_BASE_URL="https://api.groq.com/openai/v1"

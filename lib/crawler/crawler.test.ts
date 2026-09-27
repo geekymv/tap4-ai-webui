@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import classifyWebsite from './classify';
-import { extractWebsite } from './extract';
+import { combineWebsitePages, extractWebsite, selectInternalContentLinks } from './extract';
 import { normalizeUrl } from './normalize';
 import { createPinnedLookup, isPrivateAddress, resolveSafeTarget } from './url-safety';
 
@@ -65,6 +65,39 @@ describe('extractWebsite', () => {
     expect(website.canonicalUrl).toBe('https://example.com/');
     expect(website.imageUrl).toBe('https://example.com/cover.png');
     expect(website.detail).toContain('Generate articles');
+  });
+
+  it('selects only high-value same-origin content pages', () => {
+    const links = selectInternalContentLinks(
+      `<a href="/pricing">Pricing</a>
+       <a href="/features?utm_source=nav">Features</a>
+       <a href="/login">Log in</a>
+       <a href="https://other.example/about">About them</a>
+       <a href="/logo.svg">Logo</a>`,
+      'https://example.com/',
+      3,
+    );
+
+    expect(links).toEqual(['https://example.com/features', 'https://example.com/pricing']);
+  });
+
+  it('combines primary and supporting pages within the content budget', () => {
+    const homepage = extractWebsite(
+      '<title>Example</title><meta name="description" content="Main product overview."><main>Main product facts.</main>',
+      'https://example.com/',
+    );
+    const pricing = extractWebsite(
+      '<title>Pricing</title><meta name="description" content="Pricing details."><main>Free and paid plans.</main>',
+      'https://example.com/pricing',
+    );
+
+    const combined = combineWebsitePages(homepage, [pricing]);
+
+    expect(combined.canonicalUrl).toBe(homepage.canonicalUrl);
+    expect(combined.detail).toContain('Primary page: Example');
+    expect(combined.detail).toContain('Supporting page: Pricing');
+    expect(combined.detail).toContain('Free and paid plans');
+    expect(combined.detail.length).toBeLessThanOrEqual(12000);
   });
 });
 
