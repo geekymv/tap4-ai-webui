@@ -45,6 +45,20 @@ describe('agent worker output', () => {
         categories,
       ),
     ).toThrow('headings must start at h3');
+    expect(() =>
+      parseAgentOutput(
+        { ...validOutput, detail: validOutput.detail.replace('\n\n### Key Features', '') },
+        42,
+        categories,
+      ),
+    ).toThrow('consistent section layout');
+    expect(() =>
+      parseAgentOutput(
+        { ...validOutput, detail: validOutput.detail.replace('This tool helps', 'Primary page: This tool helps') },
+        42,
+        categories,
+      ),
+    ).toThrow('consistent section layout');
     const leaseToken = 'protected-lease-token-value-123456789';
     expect(() =>
       parseAgentOutput({ ...validOutput, detail: `${validOutput.detail}\n\n${leaseToken}` }, 42, categories, [

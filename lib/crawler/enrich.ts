@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 import { makeEditorialGuidance } from './editorial-guidance';
 import { ExtractedWebsite } from './extract';
-import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
+import {
+  containsSensitiveOutput,
+  containsUnsafeMarkdown,
+  hasInvalidMarkdownLayout,
+  hasShallowMarkdownHeading,
+} from './output-validation';
 
 const DEFAULT_BASE_URL = 'https://api.groq.com/openai/v1';
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
@@ -25,7 +30,8 @@ const enrichmentSchema = z.object({
     .max(15000)
     .refine((value) => !containsUnsafeMarkdown(value), 'Detail must not contain links, images, or HTML')
     .refine((value) => !containsSensitiveOutput(value), 'Detail must not contain URLs or secrets')
-    .refine((value) => !hasShallowMarkdownHeading(value), 'Detail headings must start at h3'),
+    .refine((value) => !hasShallowMarkdownHeading(value), 'Detail headings must start at h3')
+    .refine((value) => !hasInvalidMarkdownLayout(value), 'Detail must use a clean, consistent section layout'),
 });
 
 type Category = { name: string; title: string | null };

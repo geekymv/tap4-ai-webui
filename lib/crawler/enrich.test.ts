@@ -54,8 +54,8 @@ describe('crawler LLM enrichment', () => {
     const body = JSON.parse(String(capturedInit?.body));
     expect(body.model).toBe('test-model');
     expect(body.messages[0].content).toContain('untrusted source material');
-    expect(body.messages[0].content).toContain('What Is It, Key Features, How to Use, Pricing, Helpful Tips');
-    expect(body.messages[0].content).toContain('highest heading level must be h3');
+    expect(body.messages[0].content).toContain('Overview/What Is It');
+    expect(body.messages[0].content).toContain('Every section must start with exactly one level-3 heading');
     expect(body.messages[0].content).toContain('Omit any section that the source does not support');
   });
 
@@ -104,6 +104,7 @@ describe('crawler LLM enrichment', () => {
   it.each([
     ['plain URL', '### Overview\n\nFactual product information with https://evil.example embedded in text.'],
     ['shallow heading', '## Overview\n\nFactual product information that uses a disallowed heading level.'],
+    ['unstructured single section', '### Overview\n\nFactual product information without a useful section structure.'],
   ])('rejects %s in provider output', async (_name, detail) => {
     const fetcher = vi.fn(async () =>
       providerResponse({

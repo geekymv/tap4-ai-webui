@@ -2,7 +2,12 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import type { ExtractedWebsite } from './extract';
-import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
+import {
+  containsSensitiveOutput,
+  containsUnsafeMarkdown,
+  hasInvalidMarkdownLayout,
+  hasShallowMarkdownHeading,
+} from './output-validation';
 import { haveSameHttpHost } from './worker-contract';
 
 export type WorkerCategory = { name: string; title: string | null };
@@ -50,7 +55,8 @@ export const agentOutputSchema = z
       .max(15000)
       .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML')
       .refine((value) => !containsSensitiveOutput(value), 'detail must not contain URLs or secrets')
-      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3'),
+      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3')
+      .refine((value) => !hasInvalidMarkdownLayout(value), 'detail must use a clean, consistent section layout'),
   })
   .strict();
 

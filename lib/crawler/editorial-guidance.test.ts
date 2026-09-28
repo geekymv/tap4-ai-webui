@@ -9,9 +9,14 @@ describe('crawler editorial guidance', () => {
       { name: 'other', title: 'Other' },
     ]);
 
-    expect(guidance).toContain('What Is It, Key Features, How to Use, Pricing, Helpful Tips');
+    expect(guidance).toContain('Overview/What Is It');
+    expect(guidance).toContain('Key Features and How to Use to Use Cases, Pricing, Helpful Tips');
     expect(guidance).toContain('Frequently Asked Questions');
-    expect(guidance).toContain('highest heading level must be h3');
+    expect(guidance).toContain('Every section must start with exactly one level-3 heading');
+    expect(guidance).toContain('2 to 6 source-supported sections');
+    expect(guidance).toContain('no longer than three sentences');
+    expect(guidance).toContain('Deduplicate repeated claims');
+    expect(guidance).toContain('Do not output source-page labels');
     expect(guidance).toContain('do not keyword-stuff');
     expect(guidance).toContain('Omit any section that the source does not support');
     expect(guidance).toContain('"name":"writing"');
