@@ -29,6 +29,35 @@ afterEach(async () => {
 const localTarget = async () => ({ address: '127.0.0.1', family: 4 });
 
 describe('multi-page website crawling', () => {
+  it('checks robots.txt before following an entry-page redirect to another origin', async () => {
+    const requested: string[] = [];
+    const port = await listen((request, response) => {
+      const host = request.headers.host || '';
+      const requestUrl = request.url || '/';
+      requested.push(`${host}${requestUrl}`);
+      if (requestUrl === '/robots.txt') {
+        response.setHeader('content-type', 'text/plain');
+        response.end(host.startsWith('blocked.test') ? 'User-agent: *\nDisallow: /' : 'User-agent: *\nAllow: /');
+        return;
+      }
+      if (requestUrl === '/') {
+        response.writeHead(302, { Location: `http://blocked.test:${port}/private` }).end();
+        return;
+      }
+      response.end('<title>Private</title><meta name="description" content="Private content."><main>Private.</main>');
+    });
+
+    await expect(
+      crawlWebsite(`http://allowed.test:${port}/`, {
+        deadline: Date.now() + 5000,
+        pagesPerSite: 1,
+        resolveTarget: localTarget,
+      }),
+    ).rejects.toThrow('robots.txt does not allow');
+    expect(requested).toContain(`blocked.test:${port}/robots.txt`);
+    expect(requested).not.toContain(`blocked.test:${port}/private`);
+  });
+
   it('fetches selected same-origin pages and reuses robots.txt', async () => {
     const requested: string[] = [];
     const port = await listen((request, response) => {

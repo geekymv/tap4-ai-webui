@@ -12,6 +12,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 type SafeTarget = Awaited<ReturnType<typeof resolveSafeTarget>>;
 
 export type CrawlDeadline = {
+  beforeRedirect?: (url: string) => Promise<void>;
   deadline: number;
   pagesPerSite?: number;
   signal?: AbortSignal;
@@ -125,13 +126,14 @@ export async function fetchText(
             finish(() => reject(new Error('Too many redirects')));
             return;
           }
-          fetchText(new URL(location, url).toString(), accept, options, redirectCount + 1).then(
-            (value) => {
-              finish(() => resolve(value));
-            },
-            (error) => {
-              finish(() => reject(error));
-            },
+          const redirectUrl = new URL(location, url).toString();
+          const followRedirect = async () => {
+            if (options.beforeRedirect) await options.beforeRedirect(redirectUrl);
+            return fetchText(redirectUrl, accept, options, redirectCount + 1);
+          };
+          followRedirect().then(
+            (value) => finish(() => resolve(value)),
+            (error) => finish(() => reject(error)),
           );
           return;
         }
@@ -168,7 +170,7 @@ async function assertRobotsAllowed(
   const robotsUrl = `${origin}/robots.txt`;
   let policyPromise = policies.get(origin);
   if (!policyPromise) {
-    policyPromise = fetchText(robotsUrl, 'text/plain', options)
+    policyPromise = fetchText(robotsUrl, 'text/plain', { ...options, beforeRedirect: undefined })
       .then(({ text }) => robotsParser(robotsUrl, text))
       .catch((error) => {
         if (error instanceof CrawlDeadlineError || options.signal?.aborted) throw error;
@@ -196,7 +198,11 @@ export default async function crawlWebsite(input: string, options?: CrawlDeadlin
   const policies = new Map<string, Promise<RobotsPolicy>>();
   const url = normalizeUrl(input);
   await assertRobotsAllowed(url, crawlOptions, policies);
-  const response = await fetchText(url, 'text/html,application/xhtml+xml', crawlOptions);
+  const rootPageOptions = {
+    ...crawlOptions,
+    beforeRedirect: (redirectUrl: string) => assertRobotsAllowed(redirectUrl, crawlOptions, policies),
+  };
+  const response = await fetchText(url, 'text/html,application/xhtml+xml', rootPageOptions);
   const homepage = extractWebsite(response.text, response.url);
   const websiteOrigin = new URL(response.url).origin;
   const links = selectInternalContentLinks(response.text, response.url, pagesPerSite - 1);
@@ -205,7 +211,17 @@ export default async function crawlWebsite(input: string, options?: CrawlDeadlin
   for (let index = 0; index < links.length; index += 1) {
     const availableMs = crawlOptions.deadline - Date.now() - reserveMs;
     if (availableMs < 1000 || crawlOptions.signal?.aborted) break;
-    const pageOptions = { ...crawlOptions, deadline: Date.now() + Math.min(timeoutMs, availableMs) };
+    const pageDeadline = Date.now() + Math.min(timeoutMs, availableMs);
+    const pageOptions: CrawlDeadline = {
+      ...crawlOptions,
+      beforeRedirect: async (redirectUrl) => {
+        if (new URL(redirectUrl).origin !== websiteOrigin) {
+          throw new Error('Supporting page redirected to another origin');
+        }
+        await assertRobotsAllowed(redirectUrl, { ...crawlOptions, deadline: pageDeadline }, policies);
+      },
+      deadline: pageDeadline,
+    };
     try {
       // Keep requests sequential to avoid placing unexpected load on third-party sites.
       // eslint-disable-next-line no-await-in-loop
