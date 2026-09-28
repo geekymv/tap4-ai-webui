@@ -56,12 +56,13 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 ### Configure the built-in crawler
 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
-queue. A separate daily processor fetches controlled two-item waves with a shared 42-second absolute deadline. For each
-website it fetches the entry page and up to two selected same-origin product, feature, pricing, use-case, or
-documentation pages by default, observes robots.txt, combines their metadata and content, and leaves results in `review`
-state. Execute `db/postgres/create_crawler.sql` before enabling the cron jobs. Existing deployments should rerun this
-idempotent script to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and
-portable PostgreSQL transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
+queue. The external Multica worker is the scheduled consumer. It fetches the entry page and up to two selected
+same-origin product, feature, pricing, use-case, or documentation pages by default, observes robots.txt, combines their
+metadata and content, and leaves results in `review` state. The authenticated `/api/cron/process` route remains
+available only as a manual emergency processor and is not scheduled in `vercel.json`. Execute
+`db/postgres/create_crawler.sql` before enabling the workflow. Existing deployments should rerun this idempotent script
+to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL
+transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
@@ -128,8 +129,7 @@ SUBMIT_AUTH_KEY="xxxx"
 
 ```
 
-**Note: This version uses Vercel's scheduled tasks to automatically read and submit websites and generate website
-results.**
+**Note: Vercel schedules candidate discovery; the active Multica Autopilot generates review results.**
 
 Crawler results are not published automatically. Open `/admin/crawl` and sign in with `REVIEW_AUTH_KEY` to inspect
 candidates, override categories, approve or reject them, or requeue a review candidate for fresh crawling and cleanup
@@ -138,10 +138,10 @@ key are not sent back to the browser. You can also approve a candidate with `POS
 `Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
 reject it or `{"action":"rewrite"}` to return a review candidate to the processing queue.
 
-- The checked-in schedule is compatible with Vercel Hobby: discovery runs daily at 00:00 UTC and processing runs daily
-  at 01:00 UTC. For larger queues, upgrade for hourly processing or invoke `/api/cron/process` manually or from an
-  external scheduler.
-- Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or `/api/cron/process`.
+- The checked-in Vercel Hobby schedule runs discovery daily at 00:00 UTC. Queue processing is owned by the active
+  Multica Autopilot so that candidates consistently receive Agent cleanup.
+- Manual calls use POST with `Authorization: Bearer $CRON_SECRET` against `/api/cron/discover` or the emergency
+  `/api/cron/process` route. Do not schedule the emergency processor while the Multica consumer is active.
 - To generate richer summaries and Markdown details, set `CRAWLER_LLM_ENABLED=true` and a server-only
   `CRAWLER_LLM_API_KEY`. The default endpoint is Groq's OpenAI-compatible API; endpoint and model are configurable.
   Provider errors or invalid output fall back to extracted page content and do not block review.
@@ -161,8 +161,8 @@ runtime values are rejected from generated content. Cleanup follows the `tap4-ai
 features, usage, pricing, tips, and FAQs), uses h3 headings, and omits every section not supported by the source instead
 of inventing content. The scripts retain the leased claim, SSRF/robots/deadline protections, output validation, and
 failure reporting. Crawler-owned URLs and titles cannot be replaced by Agent output. Results still require approval at
-`/admin/crawl`; the Agent cannot publish content. Keep the existing Vercel process cron as a fallback, or remove that
-schedule after the external worker is verified.
+`/admin/crawl`; the Agent cannot publish content. Keep `/api/cron/process` as an authenticated manual emergency route,
+but do not schedule it alongside the Multica worker.
 
 `pnpm crawler:worker` remains available for a non-Agent worker that calls a separately configured OpenAI-compatible
 provider directly.

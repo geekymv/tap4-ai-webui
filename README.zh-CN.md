@@ -55,11 +55,11 @@
 
 ### 配置内置抓取器
 
-每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；独立的每日消费任务以 2 条受控并发，并
-在共享的 42 秒绝对时限内抓取候选。每个网站默认抓取入口页以及最多 2 个同源的功能、产品、价格、使用案例或文档页，逐页遵守
-robots.txt，并合并 SEO 信息及正文，最后置为 `review` 等待审核。启用前请执行 `db/postgres/create_crawler.sql`；已有部署也
-应重新执行一次该幂等脚本，以创建管理员审核列表索引。抓取器仅通过服务端 `DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，
-不依赖 Supabase Auth、RLS、Data API 或数据库 RPC 函数。
+每日发现任务会把待处理的用户提交、Show HN 新项目和近期 GitHub AI 项目写入候选队列；定时消费由 Multica Worker 负责。每个
+网站默认抓取入口页以及最多 2 个同源的功能、产品、价格、使用案例或文档页，逐页遵守 robots.txt，并合并 SEO 信息及正文，最
+后置为 `review` 等待审核。受鉴权的 `/api/cron/process` 仅保留为手动应急处理接口，不再配置于 `vercel.json`。启用前请执行
+`db/postgres/create_crawler.sql`；已有部署也应重新执行一次该幂等脚本，以创建管理员审核列表索引。抓取器仅通过服务端
+`DATABASE_URL` 和标准 PostgreSQL 事务访问数据库，不依赖 Supabase Auth、RLS、Data API 或数据库 RPC 函数。
 
 ### 创建Supabase数据库及执行sql脚本
 
@@ -116,16 +116,17 @@ SUBMIT_AUTH_KEY="xxxx"
 
 ```
 
-**注：此版本采用了vercel的定时任务用来自动读取自动提交的网站并生成网站结果**
+**注：Vercel 定时任务负责发现候选，已启用的 Multica Autopilot 负责生成待审核结果。**
 
 抓取结果不会自动发布。访问 `/admin/crawl`，使用 `REVIEW_AUTH_KEY` 登录后可查看候选、调整分类并批准或拒绝；管理员会话使用
 短期签名的 HttpOnly Cookie，数据库连接和审核密钥不会发送到前端。也可直接调用 `POST /api/crawl/review/{id}`，携带
 `Authorization: Bearer $REVIEW_AUTH_KEY` 和 JSON `{"action":"approve"}`；拒绝时传入 `{"action":"reject"}`，需要使用最新
 提示词重新抓取和清洗时传入 `{"action":"rewrite"}`。审核页面也提供“重新生成”按钮。
 
-- 当前配置兼容 Vercel Hobby：发现任务每天 UTC 00:00 执行，消费任务每天 UTC 01:00 执行。候选量较大时可升级套餐恢复每小时
-  消费，或手动/通过外部调度器调用 `/api/cron/process`。
-- 手动调用 `/api/cron/discover` 或 `/api/cron/process` 时采用 POST，并携带 `Authorization: Bearer $CRON_SECRET`。
+- 当前 Vercel Hobby 调度只在每天 UTC 00:00 执行发现任务；队列消费由已启用的 Multica Autopilot 负责，确保候选统一经过
+  Agent 清洗。
+- 手动调用 `/api/cron/discover` 或应急接口 `/api/cron/process` 时采用 POST，并携带
+  `Authorization: Bearer $CRON_SECRET`。Multica 消费启用期间不要再定时调用应急处理接口。
 - 如需生成更丰富的摘要和 Markdown 详情，配置服务端 `CRAWLER_LLM_API_KEY` 并设置 `CRAWLER_LLM_ENABLED=true`。默认使用
   Groq 的 OpenAI 兼容接口，地址和模型均可调整；服务异常或输出校验失败时会回退到原始抓取内容，不阻断审核。
 - 套餐限制参见[Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions)。
@@ -139,8 +140,8 @@ Multica Runtime 只需配置 `GETAITOOLS_SITE_URL` 和相同密钥的 `GETAITOOL
 的运行 ID 执行 `pnpm crawler:agent:submit <runId>`。每次运行使用独立目录，重叠调度不会覆盖其他运行文件；生成内容如果包含
 受保护运行时值会被拒绝。清洗提示词参考 `tap4-ai-crawler` 的 SEO 模板，使用 h3 组织“是什么、功能、使用方式、价格、技巧、
 常见问题”，但会删除来源不支持的章节而不是补造内容。脚本继续负责租约、SSRF、robots.txt、截止时间、输出校验和失败回
-报；Agent 输出不能改写抓取器确定的 URL 和标题。结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。建议验证外部
-Worker 后再决定是否移除 Vercel process Cron，验证期间可将其保留为降级路径。
+报；Agent 输出不能改写抓取器确定的 URL 和标题。结果仍需在 `/admin/crawl` 人工审批，Agent 无权直接发布。
+`/api/cron/process` 继续作为受鉴权的手动应急接口，但不要与 Multica Worker 同时定时消费。
 
 `pnpm crawler:worker` 仍可用于不经过 Agent、直接调用单独 OpenAI 兼容模型配置的 Worker。
 
