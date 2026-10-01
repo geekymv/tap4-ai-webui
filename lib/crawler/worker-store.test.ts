@@ -34,8 +34,9 @@ const resultInput = {
   candidateId: 1,
   canonicalUrl: 'https://example.com/',
   categoryName: 'writing',
-  description: 'Summary',
-  detail: '## Detail',
+  description: 'A factual summary of the product and its supported workflow.',
+  detail:
+    '### Overview\n\nDetailed publication content.\n\n### Features\n\nSupported features.\n\n### Usage\n\nSupported usage.',
   imageUrl: null,
   leaseToken: 'a'.repeat(43),
   title: 'Example',
@@ -62,7 +63,7 @@ describe('external crawler worker store', () => {
 
   it('rejects a result whose category is no longer active', async () => {
     const { store } = createStore((query) => {
-      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
+      if (query.includes("status = 'processing'")) return [candidate];
       if (query.includes('select name from navigation_category')) return [];
       throw new Error(`Unexpected query: ${query}`);
     });
@@ -72,7 +73,7 @@ describe('external crawler worker store', () => {
 
   it('rejects cross-site canonical and image URLs', async () => {
     const { store } = createStore((query) => {
-      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
+      if (query.includes("status = 'processing'")) return [candidate];
       throw new Error(`Unexpected query: ${query}`);
     });
 
@@ -84,16 +85,36 @@ describe('external crawler worker store', () => {
     );
   });
 
-  it('allows the www host variant and completes a live matching lease', async () => {
+  it('returns the existing publication for an idempotent result retry', async () => {
     const { store } = createStore((query) => {
-      if (query.includes("status = 'processing'")) return [{ id: 1, url: candidate.url }];
+      if (query.includes("status = 'processing'")) return [];
+      if (query.includes("status = 'published'")) {
+        return [{ canonical_url: candidate.canonical_url, category_name: 'writing' }];
+      }
+      if (query.includes('select name from web_navigation')) return [{ name: 'existing-tool' }];
+      throw new Error(`Unexpected query: ${query}`);
+    });
+
+    await expect(store.complete(resultInput)).resolves.toEqual({
+      categoryName: 'writing',
+      name: 'existing-tool',
+      status: 'published',
+    });
+  });
+
+  it('allows the www host variant and atomically publishes a live matching lease', async () => {
+    const { store } = createStore((query) => {
+      if (query.includes("status = 'processing'")) return [candidate];
       if (query.includes('select name from navigation_category')) return [{ name: 'writing' }];
+      if (query.includes('insert into web_navigation')) return [{ name: 'example-com-1' }];
       if (query.includes('update crawler.candidate')) return [];
       throw new Error(`Unexpected query: ${query}`);
     });
 
     await expect(store.complete({ ...resultInput, imageUrl: 'https://www.example.com/image.png' })).resolves.toEqual({
-      status: 'review',
+      categoryName: 'writing',
+      name: 'example-com-1',
+      status: 'published',
     });
   });
 });

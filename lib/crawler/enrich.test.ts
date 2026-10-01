@@ -20,6 +20,26 @@ const env = {
   CRAWLER_LLM_MODEL: 'test-model',
   CRAWLER_LLM_WRITE_RESERVE_MS: '100',
 };
+const validDetail = `### Overview
+
+Example helps product teams prepare written launch material from structured briefs while keeping supplied product facts central to each draft. The workspace supports repeatable communication work without replacing editorial review.
+
+Teams can use the same source information across release notes, documentation, and launch copy. Each result remains available for revision before publication.
+
+### Key Features
+
+- Drafts release notes from structured briefs
+- Produces product documentation from supplied facts
+- Creates launch copy for product teams
+- Supports review and revision in one workspace
+
+These capabilities help teams maintain a consistent process across different content types. Editors can refine the generated wording while retaining the intended factual scope.
+
+### How to Use
+
+Users provide a structured brief and choose the required type of written material. Example generates a draft that the team can inspect and revise in the workspace.
+
+Before publishing, editors verify product claims against the original brief, adjust tone for the audience, and approve the finished copy. This final review keeps communication aligned with the source.`;
 
 function providerResponse(content: Record<string, unknown>) {
   return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), {
@@ -38,8 +58,7 @@ describe('crawler LLM enrichment', () => {
         categoryName: 'writing',
         description:
           'Example is an AI writing assistant that helps product teams turn structured briefs into launch content.',
-        detail:
-          '### Overview\n\nExample helps product teams prepare written launch material from structured briefs while keeping the supplied product facts central to each draft.\n\n### Key Features\n\n- Drafts release notes from briefs\n- Produces product documentation\n- Creates launch copy for product teams\n\n### Use Cases\n\nTeams can prepare consistent release communication and documentation.',
+        detail: validDetail,
       });
     });
 
@@ -65,8 +84,7 @@ describe('crawler LLM enrichment', () => {
         categoryConfidence: 0.99,
         categoryName: 'internal-only',
         description: 'Example is an AI writing assistant that prepares launch content from supplied product briefs.',
-        detail:
-          '### Overview\n\nExample prepares launch content from structured product briefs and keeps the generated material focused on the facts supplied by product teams.\n\n### Supported Uses\n\nIt can draft release notes, product documentation, and launch copy for product teams that need consistent written communication.\n\n### Workflow\n\nTeams provide a brief and use the resulting draft in their existing review process.',
+        detail: validDetail,
       }),
     );
 

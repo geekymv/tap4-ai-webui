@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { containsSensitiveOutput, containsUnsafeMarkdown, hasShallowMarkdownHeading } from './output-validation';
+import {
+  containsSensitiveOutput,
+  containsUnsafeMarkdown,
+  hasInvalidMarkdownLayout,
+  hasShallowMarkdownHeading,
+} from './output-validation';
 
 function parsedHttpUrl(value: string) {
   const url = new URL(value);
@@ -27,8 +32,8 @@ const candidateLeaseSchema = z.object({
   leaseToken: z.string().min(32).max(256),
 });
 
-export const workerResultSchema = candidateLeaseSchema
-  .extend({
+export const publicationContentSchema = z
+  .object({
     canonicalUrl: z
       .string()
       .url()
@@ -38,17 +43,19 @@ export const workerResultSchema = candidateLeaseSchema
     description: z
       .string()
       .trim()
-      .min(1)
+      .min(40)
       .max(600)
+      .refine((value) => !/[\r\n]/.test(value), 'description must be plain text')
       .refine((value) => !containsSensitiveOutput(value), 'description must not contain URLs or secrets'),
     detail: z
       .string()
       .trim()
-      .min(1)
+      .min(600)
       .max(15000)
       .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML')
       .refine((value) => !containsSensitiveOutput(value), 'detail must not contain URLs or secrets')
-      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3'),
+      .refine((value) => !hasShallowMarkdownHeading(value), 'detail headings must start at h3')
+      .refine((value) => !hasInvalidMarkdownLayout(value), 'detail must use a clean, consistent section layout'),
     imageUrl: z
       .string()
       .url()
@@ -58,6 +65,8 @@ export const workerResultSchema = candidateLeaseSchema
     title: z.string().trim().min(1).max(300),
   })
   .strict();
+
+export const workerResultSchema = candidateLeaseSchema.merge(publicationContentSchema);
 
 export const workerFailureSchema = candidateLeaseSchema
   .extend({ message: z.string().trim().min(1).max(1000) })

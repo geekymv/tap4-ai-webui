@@ -15,7 +15,7 @@ function hashToken(token: string) {
 
 export interface CrawlerWorkerStore {
   claim(limit: number): Promise<WorkerCandidate[]>;
-  complete(input: WorkerResultInput): Promise<{ status: 'review' }>;
+  complete(input: WorkerResultInput): Promise<{ categoryName: string; name: string; status: 'published' }>;
   fail(candidateId: number, leaseToken: string, message: string): Promise<{ status: 'failed' | 'retry' }>;
   listCategories(): Promise<Array<{ name: string; title: string | null }>>;
 }
@@ -60,18 +60,24 @@ export default function createCrawlerWorkerStore(sql: Sql): CrawlerWorkerStore {
     async complete(input) {
       return sql.begin(async (transaction) => {
         const leaseHash = hashToken(input.leaseToken);
-        const [candidate] = await transaction<Array<{ id: number; url: string }>>`
-          select id, url from crawler.candidate
+        const [candidate] = await transaction<CrawlCandidate[]>`
+          select * from crawler.candidate
           where id = ${input.candidateId} and status = 'processing'
             and worker_lease_hash = ${leaseHash} and worker_lease_expires_at > now()
           for update
         `;
         if (!candidate) {
-          const [completed] = await transaction<Array<{ id: number }>>`
-            select id from crawler.candidate
-            where id = ${input.candidateId} and status = 'review' and worker_lease_hash = ${leaseHash}
+          const [completed] = await transaction<Array<{ canonical_url: string; category_name: string }>>`
+            select canonical_url, category_name from crawler.candidate
+            where id = ${input.candidateId} and status = 'published' and worker_lease_hash = ${leaseHash}
           `;
-          if (completed) return { status: 'review' as const };
+          if (completed) {
+            const [published] = await transaction<Array<{ name: string }>>`
+              select name from web_navigation where url = ${completed.canonical_url}
+            `;
+            if (!published) throw new Error('published_navigation_missing');
+            return { categoryName: completed.category_name, name: published.name, status: 'published' as const };
+          }
           throw new Error('invalid_or_expired_lease');
         }
         const canonicalUrl = normalizeUrl(input.canonicalUrl);
@@ -79,21 +85,45 @@ export default function createCrawlerWorkerStore(sql: Sql): CrawlerWorkerStore {
         if (input.imageUrl && !haveSameHttpHost(canonicalUrl, input.imageUrl)) {
           throw new Error('invalid_image_origin');
         }
-        if (input.categoryName) {
-          const [category] = await transaction<Array<{ name: string }>>`
-            select name from navigation_category where name = ${input.categoryName} and del_flag = 0
-          `;
-          if (!category) throw new Error('invalid_category');
-        }
+        const categoryName = input.categoryName || 'other';
+        const [category] = await transaction<Array<{ name: string }>>`
+          select name from navigation_category where name = ${categoryName} and del_flag = 0
+        `;
+        if (!category) throw new Error('invalid_category');
+        const baseName = candidate.domain
+          .replace(/^www\./, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+        const proposedName = `${baseName}-${candidate.id}`;
+        const [published] = await transaction<Array<{ name: string }>>`
+          insert into web_navigation (
+            name, title, content, detail, url, image_url, thumbnail_url,
+            collection_time, tag_name, category_name
+          ) values (
+            ${proposedName}, ${input.title}, ${input.description}, ${input.detail},
+            ${canonicalUrl}, ${input.imageUrl}, ${input.imageUrl},
+            now(), ${categoryName}, ${categoryName}
+          )
+          on conflict (url) where url is not null do update set
+            title = excluded.title, content = excluded.content, detail = excluded.detail,
+            image_url = excluded.image_url, thumbnail_url = excluded.thumbnail_url,
+            collection_time = excluded.collection_time, tag_name = excluded.tag_name,
+            category_name = excluded.category_name
+          returning name
+        `;
         await transaction`
           update crawler.candidate
-          set canonical_url = ${canonicalUrl}, category_name = ${input.categoryName},
+          set canonical_url = ${canonicalUrl}, category_name = ${categoryName},
               description = ${input.description}, detail = ${input.detail}, error_message = null,
               image_url = ${input.imageUrl}, locked_at = null, next_retry_at = null,
-              status = 'review', title = ${input.title}, updated_at = now()
+              status = 'published', title = ${input.title}, updated_at = now()
           where id = ${input.candidateId}
         `;
-        return { status: 'review' as const };
+        if (candidate.source === 'submission' && candidate.source_item_id) {
+          await transaction`update submit set status = 1 where id = ${candidate.source_item_id}`;
+        }
+        return { categoryName, name: published.name, status: 'published' as const };
       });
     },
 

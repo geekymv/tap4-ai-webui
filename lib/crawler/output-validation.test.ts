@@ -23,6 +23,7 @@ describe('crawler output layout validation', () => {
 
   it.each([
     ['a single unstructured section', '### Overview\n\nOnly one long section is present without useful organization.'],
+    ['only two sections', '### Overview\n\nUseful overview.\n\n### Features\n\nUseful feature details.'],
     ['source-page labels', cleanDetail.replace('This tool', 'Supporting page: This tool')],
     [
       'an empty section',

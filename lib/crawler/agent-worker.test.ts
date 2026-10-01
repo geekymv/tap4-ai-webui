@@ -10,8 +10,26 @@ const validOutput = {
   candidateId: 42,
   categoryName: 'writing',
   description: 'A factual description of this AI writing tool and its supported workflow.',
-  detail:
-    '### Overview\n\nThis tool helps users draft and revise text from supplied prompts while keeping the editing workflow in one place.\n\n### Key Features\n\n- Draft generation from user instructions\n- Revision support for existing text\n- A focused workspace for reviewing generated copy',
+  detail: `### Overview
+
+This tool helps users draft and revise text from supplied prompts while keeping the editing workflow in one place. Product teams can prepare release communication, documentation, and launch copy from the facts included in a structured brief.
+
+The workspace is intended for repeatable writing tasks that still require editorial review. Users can inspect each draft and adjust the wording before publication.
+
+### Key Features
+
+- Draft generation from user instructions
+- Revision support for existing text
+- A focused workspace for reviewing generated copy
+- Support for release notes and product documentation
+
+The feature set keeps drafting and revision together so teams can work from a consistent source. Generated material remains based on the information users provide.
+
+### How to Use
+
+Users start by supplying a brief with the relevant product facts and selecting the type of content they need. The tool prepares a draft that can be reviewed in the same workspace.
+
+Editors then verify the claims, revise tone and structure, and move approved copy into their publication process. This workflow gives teams control over the final result.`,
 };
 
 describe('agent worker output', () => {

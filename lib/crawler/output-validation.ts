@@ -59,7 +59,7 @@ export function hasInvalidMarkdownLayout(value: string) {
   const tree = markdownTree(value);
   const topLevel = tree.children as unknown as MarkdownNode[];
   const headings = topLevel.filter((node) => node.type === 'heading');
-  if (headings.length < 2 || headings.length > 6 || topLevel[0]?.type !== 'heading') return true;
+  if (headings.length < 3 || headings.length > 6 || topLevel[0]?.type !== 'heading') return true;
   if (headings.some((heading) => heading.depth !== 3 || nodeText(heading).trim().length > 100)) return true;
 
   const headingNames = new Set<string>();

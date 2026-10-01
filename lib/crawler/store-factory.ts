@@ -57,7 +57,10 @@ export interface CrawlerStore {
   listPendingSubmissions(): Promise<Array<{ id: number; url: string | null }>>;
   listReviewCandidates(offset: number, limit: number): Promise<{ items: ReviewQueueCandidate[]; total: number }>;
   markCandidateFailed(candidate: CrawlCandidate, message: string): Promise<'retry' | 'failed'>;
-  markCandidateReview(id: number, review: CandidateReview): Promise<void>;
+  publishCandidate(
+    id: number,
+    review: CandidateReview,
+  ): Promise<{ categoryName: string; name: string; status: 'published' }>;
   reviewCandidate(id: number, action: 'approve' | 'reject' | 'rewrite', categoryName?: string): Promise<ReviewResult>;
   upsertCandidates(rows: CandidateInput[]): Promise<void>;
 }
@@ -148,16 +151,53 @@ export default function createCrawlerStore(sql: Sql): CrawlerStore {
       return status;
     },
 
-    async markCandidateReview(id, review) {
-      await sql`
-        update crawler.candidate
-        set canonical_url = ${review.canonicalUrl}, category_name = ${review.categoryName},
-            description = ${review.description}, detail = ${review.detail}, error_message = null,
-            image_url = ${review.imageUrl}, locked_at = null, next_retry_at = null,
-            worker_lease_hash = null, worker_lease_expires_at = null,
-            status = 'review', title = ${review.title}, updated_at = now()
-        where id = ${id}
-      `;
+    async publishCandidate(id, review) {
+      return sql.begin(async (transaction) => {
+        const [candidate] = await transaction<CrawlCandidate[]>`
+          select * from crawler.candidate where id = ${id} and status = 'processing' for update
+        `;
+        if (!candidate) throw new Error('candidate_not_publishable');
+        const categoryName = review.categoryName || 'other';
+        const [category] = await transaction<Array<{ name: string }>>`
+          select name from navigation_category where name = ${categoryName} and del_flag = 0
+        `;
+        if (!category) throw new Error('invalid_category');
+        const baseName = candidate.domain
+          .replace(/^www\./, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+        const proposedName = `${baseName}-${candidate.id}`;
+        const [published] = await transaction<Array<{ name: string }>>`
+          insert into web_navigation (
+            name, title, content, detail, url, image_url, thumbnail_url,
+            collection_time, tag_name, category_name
+          ) values (
+            ${proposedName}, ${review.title}, ${review.description}, ${review.detail},
+            ${review.canonicalUrl}, ${review.imageUrl}, ${review.imageUrl},
+            now(), ${categoryName}, ${categoryName}
+          )
+          on conflict (url) where url is not null do update set
+            title = excluded.title, content = excluded.content, detail = excluded.detail,
+            image_url = excluded.image_url, thumbnail_url = excluded.thumbnail_url,
+            collection_time = excluded.collection_time, tag_name = excluded.tag_name,
+            category_name = excluded.category_name
+          returning name
+        `;
+        await transaction`
+          update crawler.candidate
+          set canonical_url = ${review.canonicalUrl}, category_name = ${categoryName},
+              description = ${review.description}, detail = ${review.detail}, error_message = null,
+              image_url = ${review.imageUrl}, locked_at = null, next_retry_at = null,
+              worker_lease_hash = null, worker_lease_expires_at = null,
+              status = 'published', title = ${review.title}, updated_at = now()
+          where id = ${id}
+        `;
+        if (candidate.source === 'submission' && candidate.source_item_id) {
+          await transaction`update submit set status = 1 where id = ${candidate.source_item_id}`;
+        }
+        return { categoryName, name: published.name, status: 'published' as const };
+      });
     },
 
     async reviewCandidate(id, action, categoryOverride) {

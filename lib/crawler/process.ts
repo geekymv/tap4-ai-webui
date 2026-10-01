@@ -2,6 +2,7 @@ import classifyWebsite from './classify';
 import enrichWebsite from './enrich';
 import crawlWebsite, { CrawlDeadline } from './fetch-page';
 import type { CrawlCandidate, CrawlerStore } from './store';
+import { publicationContentSchema } from './worker-contract';
 
 type ProcessOptions = CrawlDeadline & { crawl?: typeof crawlWebsite; enrich?: typeof enrichWebsite };
 
@@ -30,7 +31,7 @@ export default async function processCandidate(
       enrichment = 'fallback';
       enrichmentError = error instanceof Error ? error.message.slice(0, 300) : 'Unknown LLM enrichment error';
     }
-    await store.markCandidateReview(candidate.id, {
+    const publication = publicationContentSchema.parse({
       canonicalUrl: website.canonicalUrl,
       categoryName,
       description,
@@ -38,7 +39,8 @@ export default async function processCandidate(
       imageUrl: website.imageUrl,
       title: website.title,
     });
-    return { enrichment, enrichmentError, id: candidate.id, status: 'review' as const };
+    const published = await store.publishCandidate(candidate.id, publication);
+    return { enrichment, enrichmentError, id: candidate.id, ...published };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 1000) : 'Unknown crawler error';
     const status = await store.markCandidateFailed(candidate, message);

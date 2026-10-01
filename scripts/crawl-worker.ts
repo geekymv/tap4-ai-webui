@@ -61,15 +61,17 @@ async function main() {
         );
         return result.status;
       },
-      markCandidateReview: async (_id: number, review: CandidateReview) => {
+      publishCandidate: async (_id: number, review: CandidateReview) => {
         const imageUrl =
           review.imageUrl && haveSameHttpHost(review.canonicalUrl, review.imageUrl) ? review.imageUrl : null;
-        await apiRequest('/api/crawl/worker/result', {
-          ...review,
-          candidateId: job.id,
-          imageUrl,
-          leaseToken: job.leaseToken,
-        });
+        return z.object({ categoryName: z.string(), name: z.string(), status: z.literal('published') }).parse(
+          await apiRequest('/api/crawl/worker/result', {
+            ...review,
+            candidateId: job.id,
+            imageUrl,
+            leaseToken: job.leaseToken,
+          }),
+        );
       },
     } as CrawlerStore;
     const controller = new AbortController();

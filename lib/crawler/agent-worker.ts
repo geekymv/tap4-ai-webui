@@ -51,7 +51,7 @@ export const agentOutputSchema = z
     detail: z
       .string()
       .trim()
-      .min(200)
+      .min(600)
       .max(15000)
       .refine((value) => !containsUnsafeMarkdown(value), 'detail must not contain links, images, or HTML')
       .refine((value) => !containsSensitiveOutput(value), 'detail must not contain URLs or secrets')

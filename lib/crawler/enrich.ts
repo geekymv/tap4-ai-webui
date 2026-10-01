@@ -26,7 +26,7 @@ const enrichmentSchema = z.object({
   detail: z
     .string()
     .trim()
-    .min(200)
+    .min(600)
     .max(15000)
     .refine((value) => !containsUnsafeMarkdown(value), 'Detail must not contain links, images, or HTML')
     .refine((value) => !containsSensitiveOutput(value), 'Detail must not contain URLs or secrets')
@@ -134,7 +134,7 @@ export default async function enrichWebsite(
   try {
     const response = await (options.fetcher || fetch)(endpoint, {
       body: JSON.stringify({
-        max_tokens: 2200,
+        max_tokens: 4000,
         messages: [
           { content: makeSystemPrompt(categories), role: 'system' },
           {

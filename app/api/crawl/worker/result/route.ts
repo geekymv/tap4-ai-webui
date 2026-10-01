@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
@@ -13,7 +14,12 @@ export async function POST(req: NextRequest) {
   }
   try {
     const input = workerResultSchema.parse(await req.json());
-    return NextResponse.json(await createCrawlerWorkerStore().complete(input));
+    const result = await createCrawlerWorkerStore().complete(input);
+    revalidatePath('/');
+    revalidatePath('/explore');
+    revalidatePath(`/category/${result.categoryName}`);
+    revalidatePath(`/ai/${result.name}`);
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Worker result failed';
     let status = 500;

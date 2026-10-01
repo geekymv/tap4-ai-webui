@@ -6,8 +6,27 @@ const validResult = {
   candidateId: 1,
   canonicalUrl: 'https://example.com/',
   categoryName: 'writing',
-  description: 'A factual summary.',
-  detail: '### Overview\n\nA factual product overview without remote content.',
+  description: 'A factual summary of the product and its supported team workflow.',
+  detail: `### Overview
+
+Example helps product teams prepare launch content from structured briefs while keeping supplied facts central to each draft. The workspace supports repeatable communication work and keeps drafts available for editorial review.
+
+Teams can prepare release notes, documentation, and launch copy from the same source information. They remain responsible for checking the result before publication.
+
+### Key Features
+
+- Drafts release notes from structured briefs
+- Produces product documentation from supplied facts
+- Creates launch copy for product teams
+- Supports revision in one workspace
+
+These capabilities keep drafting and editing in a consistent process. The generated material remains limited to the product information supplied by users.
+
+### How to Use
+
+Users provide a structured brief and select the type of material they need. Example creates a draft that can be inspected and revised in the workspace.
+
+Editors verify important claims, adjust wording for their audience, and approve the finished copy for publication. This review keeps the final communication aligned with the original brief.`,
   imageUrl: null,
   leaseToken: 'a'.repeat(43),
   title: 'Example',
@@ -19,7 +38,7 @@ describe('external crawler worker contract', () => {
     expect(() => workerClaimSchema.parse({ limit: 6 })).toThrow();
   });
 
-  it('accepts safe review content', () => {
+  it('accepts safe publication content', () => {
     expect(workerResultSchema.parse(validResult)).toMatchObject({ candidateId: 1, categoryName: 'writing' });
   });
 

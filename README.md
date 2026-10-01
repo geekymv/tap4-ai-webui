@@ -14,7 +14,7 @@ suitable for learners interested in NextJs. Everyone is welcome to fork and star
 ## Version 2.0.0 Update Notes
 
 - AI site data is stored using a supabase database.
-- Website discovery and crawling run inside this project, with candidates held for review before publication.
+- Website discovery and crawling run inside this project, with validated Agent results published automatically.
 - Supports simple categorization and search.
 
 Note: If you are not familiar with the database, or are concerned about compatibility issues with version 1.0.0, please
@@ -58,11 +58,11 @@ If you are interested in the project, please add my WeChat: helloleo2023, note: 
 The daily discovery cron imports pending user submissions, Show HN launches, and recent GitHub projects into a candidate
 queue. The external Multica worker is the scheduled consumer. It fetches the entry page and up to two selected
 same-origin product, feature, pricing, use-case, or documentation pages by default, observes robots.txt, combines their
-metadata and content, and leaves results in `review` state. The authenticated `/api/cron/process` route remains
-available only as a manual emergency processor and is not scheduled in `vercel.json`. Execute
-`db/postgres/create_crawler.sql` before enabling the workflow. Existing deployments should rerun this idempotent script
-to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and portable PostgreSQL
-transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
+metadata and content, validates publication-ready Markdown, and publishes valid results atomically. The authenticated
+`/api/cron/process` route remains available only as a manual emergency processor and is not scheduled in `vercel.json`.
+Execute `db/postgres/create_crawler.sql` before enabling the workflow. Existing deployments should rerun this idempotent
+script to add the admin review-list index. The crawler uses a server-only standard `DATABASE_URL` and portable
+PostgreSQL transactions; it does not use Supabase Auth, RLS, Data API, or database RPC functions.
 
 ### Creating a Supabase Database and Executing SQL Scripts
 
@@ -129,14 +129,13 @@ SUBMIT_AUTH_KEY="xxxx"
 
 ```
 
-**Note: Vercel schedules candidate discovery; the active Multica Autopilot generates review results.**
+**Note: Vercel schedules candidate discovery; the active Multica Autopilot generates and automatically publishes valid
+results.**
 
-Crawler results are not published automatically. Open `/admin/crawl` and sign in with `REVIEW_AUTH_KEY` to inspect
-candidates, override categories, approve or reject them, or requeue a review candidate for fresh crawling and cleanup
-with the latest prompt. The admin session uses a short-lived signed HttpOnly cookie; database credentials and the review
-key are not sent back to the browser. You can also approve a candidate with `POST /api/crawl/review/{id}`, an
-`Authorization: Bearer $REVIEW_AUTH_KEY` header, and JSON body `{"action":"approve"}`. Use `{"action":"reject"}` to
-reject it or `{"action":"rewrite"}` to return a review candidate to the processing queue.
+New results bypass manual review only after server-side category, origin, length, Markdown layout, and sensitive-output
+validation succeeds. `/admin/crawl` and `REVIEW_AUTH_KEY` remain available for legacy `review` records and operational
+cleanup. The admin session uses a short-lived signed HttpOnly cookie; database credentials and the review key are not
+sent back to the browser.
 
 - The checked-in Vercel Hobby schedule runs discovery daily at 00:00 UTC. Queue processing is owned by the active
   Multica Autopilot so that candidates consistently receive Agent cleanup.
@@ -144,7 +143,7 @@ reject it or `{"action":"rewrite"}` to return a review candidate to the processi
   `/api/cron/process` route. Do not schedule the emergency processor while the Multica consumer is active.
 - To generate richer summaries and Markdown details, set `CRAWLER_LLM_ENABLED=true` and a server-only
   `CRAWLER_LLM_API_KEY`. The default endpoint is Groq's OpenAI-compatible API; endpoint and model are configurable.
-  Provider errors or invalid output fall back to extracted page content and do not block review.
+  Provider errors or invalid output are retried and are never published as unvalidated extracted page content.
 - Refer to the Vercel documentation for plan-specific limits:
   [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs#cron-expressions).
 
@@ -158,11 +157,12 @@ as untrusted source data, with each job combining up to three high-value pages f
 structured results under the run-specific results directory, and runs `pnpm crawler:agent:submit <runId>` with the
 returned run ID. Unique run directories prevent overlapping schedules from replacing another run's files; protected
 runtime values are rejected from generated content. Cleanup follows the `tap4-ai-crawler` SEO template (what it is,
-features, usage, pricing, tips, and FAQs), uses h3 headings, and omits every section not supported by the source instead
-of inventing content. The scripts retain the leased claim, SSRF/robots/deadline protections, output validation, and
-failure reporting. Crawler-owned URLs and titles cannot be replaced by Agent output. Results still require approval at
-`/admin/crawl`; the Agent cannot publish content. Keep `/api/cron/process` as an authenticated manual emergency route,
-but do not schedule it alongside the Multica worker.
+features, usage, pricing, tips, and FAQs), targets roughly 800–2,000 characters across three to six h3 sections, and
+omits every section not supported by the source instead of inventing content. The scripts retain the leased claim,
+SSRF/robots/deadline protections, output validation, and failure reporting. Crawler-owned URLs and titles cannot be
+replaced by Agent output. The Worker API publishes only after all server-side checks pass; invalid output enters the
+retry/failure path. Keep `/api/cron/process` as an authenticated manual emergency route, but do not schedule it
+alongside the Multica worker.
 
 `pnpm crawler:worker` remains available for a non-Agent worker that calls a separately configured OpenAI-compatible
 provider directly.

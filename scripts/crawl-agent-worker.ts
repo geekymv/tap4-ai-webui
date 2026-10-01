@@ -168,7 +168,7 @@ async function submit(runId: string) {
         candidateId: job.candidateId,
         leaseToken: job.leaseToken,
       });
-      const response = z.object({ status: z.enum(['review', 'already_completed']) }).parse(responseBody);
+      const response = z.object({ status: z.enum(['published', 'review']) }).parse(responseBody);
       results.push({ candidateId: job.candidateId, status: response.status });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown agent output error';

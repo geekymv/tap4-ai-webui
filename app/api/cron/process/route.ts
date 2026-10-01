@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
 import processCandidate from '@/lib/crawler/process';
@@ -28,6 +29,13 @@ async function processQueue(req: NextRequest) {
       minimumWindowMs: 16000,
       process: (candidate, signal) =>
         processCandidate(store, candidate, categories, { deadline: startedAt + 42000, signal }),
+    });
+    processed.forEach((result) => {
+      if (result.status !== 'published') return;
+      revalidatePath('/');
+      revalidatePath('/explore');
+      revalidatePath(`/category/${result.categoryName}`);
+      revalidatePath(`/ai/${result.name}`);
     });
     return NextResponse.json({ elapsedMs: Date.now() - startedAt, processed });
   } catch (error) {
