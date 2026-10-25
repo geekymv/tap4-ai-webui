@@ -5,19 +5,18 @@ import { WebNavigation } from '@/db/supabase/types';
 import { CircleArrowRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+import CoverImage from '@/components/image/CoverImage';
+
 export default function WebNavCard({ name, thumbnail_url, title, url, content }: WebNavigation) {
   const t = useTranslations('Home');
 
   return (
     <div className='flex h-[210px] flex-col gap-3 rounded-xl bg-[#2C2D36] p-1 lg:h-[343px]'>
       <Link href={`/ai/${name}`} title={title} className='group relative'>
-        <img
+        <CoverImage
           src={thumbnail_url || ''}
-          alt={title}
           title={title}
-          width={310}
-          height={174}
-          className='aspect-[310/174] w-full rounded-xl bg-white/40 hover:opacity-70'
+          className='aspect-[310/174] w-full rounded-xl transition-opacity hover:opacity-70'
         />
         <div className='absolute inset-0 z-10 hidden items-center justify-center gap-1 rounded-xl bg-black bg-opacity-50 text-xl text-white transition-all duration-200 group-hover:flex'>
           {t('checkDetail')} <CircleArrowRight className='size-4' />
