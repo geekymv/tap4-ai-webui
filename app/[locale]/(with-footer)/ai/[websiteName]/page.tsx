@@ -5,7 +5,7 @@ import { CircleArrowRight } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
 import { Separator } from '@/components/ui/separator';
-import BaseImage from '@/components/image/BaseImage';
+import CoverImage from '@/components/image/CoverImage';
 import MarkdownProse from '@/components/MarkdownProse';
 
 export async function generateMetadata({
@@ -62,14 +62,10 @@ export default async function Page({ params: { websiteName } }: { params: { webs
           rel='noreferrer'
           className='flex-center group relative h-[171px] w-full flex-shrink-0 lg:h-[234px] lg:w-[466px]'
         >
-          <BaseImage
+          <CoverImage
             title={data.title}
-            alt={data.title}
-            // width={466}
-            // height={243}
-            fill
             src={data.thumbnail_url || ''}
-            className='absolute mt-3 aspect-[466/234] w-full rounded-[16px] border border-[#424242] bg-[#424242] bg-cover lg:mt-0'
+            className='absolute inset-0 mt-3 aspect-[466/234] w-full rounded-[16px] border border-[#424242] lg:mt-0'
           />
           <div className='absolute inset-0 z-10 hidden items-center justify-center gap-1 rounded-[16px] bg-black bg-opacity-50 text-2xl text-white transition-all duration-200 group-hover:flex'>
             {t('visitWebsite')} <CircleArrowRight className='size-5' />
