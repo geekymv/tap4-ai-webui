@@ -1,11 +1,13 @@
 /* eslint-disable react/jsx-props-no-spreading */
 import { WebNavigation } from '@/db/supabase/types';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
+import { getIntentLocale, intentPages } from '@/lib/intent-pages';
 import Empty from '@/components/Empty';
 import ExploreBreadcrumb from '@/components/explore/ExploreBreadcrumb';
 import BasePagination from '@/components/page/BasePagination';
 import WebNavCard from '@/components/webNav/WebNavCard';
+import { Link } from '@/app/navigation';
 
 export default function Content({
   headerTitle,
@@ -23,6 +25,9 @@ export default function Content({
   route: string;
 }) {
   const t = useTranslations('Category');
+  const locale = getIntentLocale(useLocale());
+  const categoryCode = route.split('/').filter(Boolean).at(-1);
+  const relatedIntents = intentPages.filter(({ category }) => category === categoryCode);
 
   return (
     <>
@@ -43,6 +48,19 @@ export default function Content({
           />
         </div>
       </div>
+      {relatedIntents.length > 0 && (
+        <nav className='flex flex-wrap justify-center gap-2' aria-label={headerTitle}>
+          {relatedIntents.map((intent) => (
+            <Link
+              key={intent.slug}
+              href={`/best/${intent.slug}`}
+              className='rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:border-white hover:text-white'
+            >
+              {intent.labels[locale]}
+            </Link>
+          ))}
+        </nav>
+      )}
       <div className='mt-3'>
         {navigationList && !!navigationList?.length ? (
           <>

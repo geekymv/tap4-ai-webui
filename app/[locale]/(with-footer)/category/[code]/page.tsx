@@ -5,12 +5,13 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/db/supabase/client';
 
 import { InfoPageSize, RevalidateOneHour } from '@/lib/constants';
+import { languageAlternates } from '@/lib/seo';
 
 import Content from './Content';
 
 export const revalidate = RevalidateOneHour * 6;
 
-export async function generateMetadata({ params }: { params: { code: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: { code: string; locale: string } }): Promise<Metadata> {
   const supabase = createClient();
   const { data: categoryList } = await supabase.from('navigation_category').select().eq('name', params.code);
 
@@ -20,6 +21,7 @@ export async function generateMetadata({ params }: { params: { code: string } })
 
   return {
     title: categoryList[0].title,
+    alternates: languageAlternates(params.locale, `/category/${params.code}`),
   };
 }
 

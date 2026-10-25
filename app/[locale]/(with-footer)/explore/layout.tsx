@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { useTranslations } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 
+import { languageAlternates } from '@/lib/seo';
 import Faq from '@/components/Faq';
 
 export async function generateMetadata({ params: { locale } }: { params: { locale: string } }): Promise<Metadata> {
@@ -14,6 +15,7 @@ export async function generateMetadata({ params: { locale } }: { params: { local
     title: t('title'),
     description: t('description'),
     keywords: t('keywords'),
+    alternates: languageAlternates(locale, '/explore'),
   };
 }
 
