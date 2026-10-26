@@ -34,9 +34,9 @@ export default function Navigation() {
                 src='/images/tap4-ai.svg'
                 alt={t('title')}
                 title={t('title')}
-                width={64}
-                height={64}
-                className='size-[58px] lg:size-16'
+                width={45}
+                height={45}
+                className='size-[45px]'
               />
             </Link>
           </div>
