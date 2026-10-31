@@ -13,7 +13,7 @@ suitable for learners interested in NextJs. Everyone is welcome to fork and star
 
 ## Version 2.0.0 Update Notes
 
-- AI site data is stored using a supabase database.
+- AI site data is stored in Cloudflare D1.
 - Website discovery and crawling run inside this project, with validated Agent results published automatically.
 - Supports simple categorization and search.
 
@@ -30,9 +30,15 @@ click to switch to the [version 1.0.0 branch](https://github.com/6677-ai/tap4-ai
 
 ## Technical Stack Description
 
-- Uses NEXT 14 and app routing (React server components).
-- Supabase serverless database.
+- Uses Next.js 14 and app routing (React server components).
+- Cloudflare Workers via OpenNext and Cloudflare D1.
 - Internationalization.
+
+## Cloudflare deployment and database migration
+
+See [`docs/cloudflare-d1-migration.md`](docs/cloudflare-d1-migration.md) for provisioning, read-only Supabase export, D1
+import, validation, cutover, and rollback instructions. Production data is never migrated automatically.
+
 - SEO friendly (supports i18n).
 - Dynamic sitemap.xml (supports i18n).
 - Tailwind CSS.

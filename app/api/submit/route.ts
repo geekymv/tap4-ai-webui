@@ -1,74 +1,27 @@
-/* eslint-disable import/prefer-default-export */
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/db/supabase/client';
+import { createSubmission } from '@/db/queries';
+import { z } from 'zod';
 
-// submit table empty -> stop
-
-// filter status
-// isFeature (priority)
-// time order
-
-// when crawler is done
-// insert web_nav table (tags <- tags[0] or 'other')
-// update submit table status
+const submissionSchema = z.object({
+  email: z.string().email().max(254),
+  name: z.string().trim().min(1).max(120),
+  url: z
+    .string()
+    .url()
+    .max(2048)
+    .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol)),
+});
 
 export async function POST(req: NextRequest) {
   try {
-    // Get Authorization
-    const authHeader = req.headers.get('Authorization');
-
-    // Check Authorization and Verify token
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Authorization header is missing or malformed' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const submitKey = process.env.SUBMIT_AUTH_KEY;
-    // check key
-    const isValid = submitKey === token;
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const supabase = createClient();
-
-    // 从请求体中获取参数
-    const { email, url, name } = await req.json();
-
-    // 检查参数是否存在
-    if (!email || !url || !name) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
-    }
-
-    // 检查 URL 是否已存在
-    const { data: existingEntry, error: existingEntryError } = await supabase
-      .from('web_navigation')
-      .select()
-      .eq('url', url)
-      .single();
-
-    if (existingEntryError && existingEntryError.code !== 'PGRST116') {
-      // PGRST116 means no rows found
-      throw new Error(existingEntryError.message);
-    }
-
-    if (existingEntry) {
-      return NextResponse.json({ message: 'Success' });
-    }
-
-    // 插入新数据
-    const { error: insertError } = await supabase.from('submit').insert({
-      email,
-      url,
-      name,
-    });
-
-    if (insertError) {
-      throw new Error(insertError.message);
-    }
-
+    const input = submissionSchema.parse(await req.json());
+    await createSubmission(input);
     return NextResponse.json({ message: 'Success' });
   } catch (error) {
-    return NextResponse.json({ error: Error }, { status: 500 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid submission' }, { status: 400 });
+    }
+    console.error('Submission failed', error);
+    return NextResponse.json({ error: 'Unable to save submission' }, { status: 500 });
   }
 }

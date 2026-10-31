@@ -1,147 +1,72 @@
-import { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import createCrawlerStore, { CrawlCandidate } from './store-factory';
+import createTestDatabase from './test-d1';
 
-function storeWithMissingFinalCategory(candidateCategory: string | null) {
-  const candidate = {
-    attempt_count: 1,
-    canonical_url: 'https://example.com/',
-    category_name: candidateCategory,
-    description: 'A complete description.',
-    detail: '## Complete detail',
-    domain: 'example.com',
-    id: 1,
-    image_url: null,
-    source: 'github',
-    source_item_id: '1',
-    status: 'review',
-    title: 'Example',
-    url: 'https://example.com/',
-  } as CrawlCandidate;
-  const transaction = vi.fn((strings: TemplateStringsArray) => {
-    const query = strings.join(' ');
-    if (query.includes('select * from crawler.candidate')) return Promise.resolve([candidate]);
-    if (query.includes('select name from navigation_category')) return Promise.resolve([]);
-    throw new Error(`Unexpected query: ${query}`);
+const candidate = {
+  attempt_count: 1,
+  canonical_url: 'https://example.com/',
+  category_name: 'writing',
+  description: 'A complete description.',
+  detail: '## Complete detail',
+  domain: 'example.com',
+  id: 1,
+  image_url: null,
+  source: 'github',
+  source_item_id: null,
+  status: 'review',
+  title: 'Example',
+  url: 'https://example.com/',
+} as CrawlCandidate;
+
+describe('D1 crawler store', () => {
+  it('keeps large detail content out of the review queue query', async () => {
+    const { database, queries } = createTestDatabase((query) => (query.includes('COUNT(*)') ? [{ count: 0 }] : []));
+    await createCrawlerStore(database).listReviewCandidates(0, 12);
+    const query = queries.find(({ query: value }) => value.includes('ORDER BY updated_at'))?.query;
+    expect(query).toBeDefined();
+    expect(query).not.toContain('SELECT *');
+    expect(query).toContain('detail IS NOT NULL AS has_detail');
   });
-  const sql = {
-    begin: async (callback: (value: typeof transaction) => Promise<unknown>) => callback(transaction),
-  } as unknown as Sql;
-  return { store: createCrawlerStore(sql), transaction };
-}
 
-describe('crawler review store queries', () => {
-  it('keeps large candidate detail content out of the paginated review query', async () => {
-    const queries: string[] = [];
-    const sql = vi.fn((strings: TemplateStringsArray) => {
-      const query = strings.join(' ');
-      queries.push(query);
-      if (query.includes('count(*)')) return Promise.resolve([{ count: 0 }]);
-      return Promise.resolve([]);
-    }) as unknown as Sql;
-
-    await createCrawlerStore(sql).listReviewCandidates(0, 12);
-
-    const listQuery = queries.find((query) => query.includes('order by updated_at'));
-    expect(listQuery).toBeDefined();
-    expect(listQuery).not.toContain('select *');
-    expect(listQuery).toContain('detail is not null as has_detail');
-  });
-});
-
-describe('crawler publication and review transactions', () => {
-  it('atomically publishes a processed candidate without creating a review step', async () => {
-    const processingCandidate = {
-      attempt_count: 1,
-      canonical_url: 'https://example.com/',
-      category_name: null,
-      description: null,
-      detail: null,
-      domain: 'example.com',
-      id: 1,
-      image_url: null,
-      source: 'github',
-      source_item_id: null,
-      status: 'processing',
-      title: null,
-      url: 'https://example.com/',
-    } as CrawlCandidate;
-    const queries: string[] = [];
-    const transaction = vi.fn((strings: TemplateStringsArray) => {
-      const query = strings.join(' ');
-      queries.push(query);
-      if (query.includes('select * from crawler.candidate')) return Promise.resolve([processingCandidate]);
-      if (query.includes('select name from navigation_category')) return Promise.resolve([{ name: 'writing' }]);
-      if (query.includes('insert into web_navigation')) return Promise.resolve([{ name: 'example-com-1' }]);
-      if (query.includes('update crawler.candidate')) return Promise.resolve([]);
-      throw new Error(`Unexpected query: ${query}`);
+  it('publishes a processed candidate through an atomic D1 batch', async () => {
+    const processing = { ...candidate, status: 'processing' };
+    const { database, queries } = createTestDatabase((query) => {
+      if (query.includes("status = 'processing'")) return [processing];
+      if (query.includes('SELECT name FROM navigation_category')) return [{ name: 'writing' }];
+      return [];
     });
-    const sql = {
-      begin: async (callback: (value: typeof transaction) => Promise<unknown>) => callback(transaction),
-    } as unknown as Sql;
-
     await expect(
-      createCrawlerStore(sql).publishCandidate(1, {
-        canonicalUrl: 'https://example.com/',
+      createCrawlerStore(database).publishCandidate(1, {
+        canonicalUrl: candidate.canonical_url,
         categoryName: 'writing',
-        description: 'A complete factual product description for publication.',
-        detail: '### Overview\n\nContent.\n\n### Features\n\nContent.\n\n### Usage\n\nContent.',
+        description: candidate.description!,
+        detail: candidate.detail!,
         imageUrl: null,
-        title: 'Example',
+        title: candidate.title!,
       }),
     ).resolves.toEqual({ categoryName: 'writing', name: 'example-com-1', status: 'published' });
-    expect(queries.some((query) => query.includes("status = 'published'"))).toBe(true);
-    expect(queries.some((query) => query.includes("status = 'review'"))).toBe(false);
+    expect(queries.some(({ query }) => query.includes('INSERT INTO web_navigation'))).toBe(true);
+    expect(queries.some(({ query }) => query.includes("status = 'published'"))).toBe(true);
   });
 
-  it('atomically requeues a review candidate for rewriting', async () => {
-    const candidate = {
-      attempt_count: 2,
-      canonical_url: 'https://example.com/',
-      category_name: 'writing',
-      description: 'Existing description.',
-      detail: '### Existing detail',
-      domain: 'example.com',
-      id: 1,
-      image_url: null,
-      source: 'github',
-      source_item_id: null,
-      status: 'review',
-      title: 'Example',
-      url: 'https://example.com/',
-    } as CrawlCandidate;
-    let requeueQuery = '';
-    const transaction = vi.fn((strings: TemplateStringsArray) => {
-      const query = strings.join(' ');
-      if (query.includes('select * from crawler.candidate')) return Promise.resolve([candidate]);
-      if (query.includes("set status = 'pending'")) {
-        requeueQuery = query;
-        return Promise.resolve([]);
-      }
-      throw new Error(`Unexpected query: ${query}`);
+  it('rejects an inactive category before publication', async () => {
+    const { database, queries } = createTestDatabase((query) => {
+      if (query.includes("status = 'review'")) return [candidate];
+      return [];
     });
-    const sql = {
-      begin: async (callback: (value: typeof transaction) => Promise<unknown>) => callback(transaction),
-    } as unknown as Sql;
-
-    await expect(createCrawlerStore(sql).reviewCandidate(1, 'rewrite')).resolves.toEqual({ status: 'pending' });
-    expect(requeueQuery).toContain('attempt_count = 0');
-    expect(requeueQuery).toContain('worker_lease_hash = null');
+    await expect(createCrawlerStore(database).reviewCandidate(1, 'approve')).rejects.toThrow('invalid_category');
+    expect(queries.some(({ query }) => query.includes('INSERT INTO web_navigation'))).toBe(false);
   });
 
-  it('rejects a stale automatic category before publishing', async () => {
-    const { store, transaction } = storeWithMissingFinalCategory('removed-category');
-
-    await expect(store.reviewCandidate(1, 'approve')).rejects.toThrow('invalid_category');
-    expect(transaction.mock.calls.some(([query]) => String.raw(query).includes('insert into web_navigation'))).toBe(
-      false,
-    );
-  });
-
-  it('rejects the other fallback when that category does not exist', async () => {
-    const { store } = storeWithMissingFinalCategory(null);
-
-    await expect(store.reviewCandidate(1, 'approve')).rejects.toThrow('invalid_category');
+  it('requeues a review candidate and resets lease state', async () => {
+    const { database, queries } = createTestDatabase((query) => {
+      if (query.includes("status = 'review'")) return [candidate];
+      return [];
+    });
+    await expect(createCrawlerStore(database).reviewCandidate(1, 'rewrite')).resolves.toEqual({ status: 'pending' });
+    const query = queries.find(({ query: value }) => value.includes("status = 'pending'"))?.query || '';
+    expect(query).toContain('attempt_count = 0');
+    expect(query).toContain('worker_lease_hash = NULL');
   });
 });

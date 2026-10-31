@@ -1,4 +1,4 @@
-import { createClient } from '@/db/supabase/client';
+import { countTools, listCategories, listTools } from '@/db/queries';
 
 import SearchForm from '@/components/home/SearchForm';
 import BasePagination from '@/components/page/BasePagination';
@@ -9,20 +9,15 @@ import { TagList } from '../(home)/Tag';
 const WEB_PAGE_SIZE = 12;
 
 export default async function ExploreList({ pageNum }: { pageNum?: string }) {
-  const supabase = createClient();
   const currentPage = pageNum ? Number(pageNum) : 1;
 
   // start and end
   const start = (currentPage - 1) * WEB_PAGE_SIZE;
-  const end = start + WEB_PAGE_SIZE - 1;
 
-  const [{ data: categoryList }, { data: navigationList, count }] = await Promise.all([
-    supabase.from('navigation_category').select(),
-    supabase
-      .from('web_navigation')
-      .select('*', { count: 'exact' })
-      .order('collection_time', { ascending: false })
-      .range(start, end),
+  const [categoryList, navigationList, count] = await Promise.all([
+    listCategories(),
+    listTools({ limit: WEB_PAGE_SIZE, offset: start, order: 'collection_time_desc' }),
+    countTools(),
   ]);
 
   return (

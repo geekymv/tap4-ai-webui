@@ -1,4 +1,4 @@
-import { Sql } from 'postgres';
+import type { D1DatabaseClient } from '../../db/d1';
 
 export type CrawlCandidate = {
   attempt_count: number;
@@ -41,13 +41,13 @@ export type ReviewQueueCandidate = {
   category_name: string | null;
   description: string | null;
   domain: string;
-  has_detail: boolean;
+  has_detail: number;
   id: number;
   image_url: string | null;
   source: string;
   source_url: string | null;
   title: string | null;
-  updated_at: Date;
+  updated_at: string;
 };
 
 export interface CrawlerStore {
@@ -65,218 +65,248 @@ export interface CrawlerStore {
   upsertCandidates(rows: CandidateInput[]): Promise<void>;
 }
 
-export default function createCrawlerStore(sql: Sql): CrawlerStore {
+const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+const CLAIMABLE = `(status = 'pending'
+  OR (status = 'retry' AND COALESCE(next_retry_at, ${NOW}) <= ${NOW})
+  OR (status = 'processing' AND (
+    (worker_lease_expires_at IS NOT NULL AND worker_lease_expires_at < ${NOW})
+    OR (worker_lease_expires_at IS NULL AND locked_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-15 minutes'))
+  )))`;
+
+function publicationName(candidate: CrawlCandidate) {
+  const baseName = candidate.domain
+    .replace(/^www\./, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${baseName}-${candidate.id}`;
+}
+
+async function activeCategory(database: D1DatabaseClient, name: string) {
+  return database
+    .prepare('SELECT name FROM navigation_category WHERE name = ? AND del_flag = 0 LIMIT 1')
+    .bind(name)
+    .first<{ name: string }>();
+}
+
+async function publish(
+  database: D1DatabaseClient,
+  candidate: CrawlCandidate,
+  review: CandidateReview,
+  requiredStatus: 'processing' | 'review',
+) {
+  const categoryName = review.categoryName || 'other';
+  if (!(await activeCategory(database, categoryName))) throw new Error('invalid_category');
+  const name = publicationName(candidate);
+  const statements = [
+    database
+      .prepare(
+        `INSERT INTO web_navigation (
+        name, title, content, detail, url, image_url, thumbnail_url,
+        collection_time, tag_name, category_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ${NOW}, ?, ?)
+      ON CONFLICT(url) WHERE url IS NOT NULL DO UPDATE SET
+        title = excluded.title, content = excluded.content, detail = excluded.detail,
+        image_url = excluded.image_url, thumbnail_url = excluded.thumbnail_url,
+        collection_time = excluded.collection_time, tag_name = excluded.tag_name,
+        category_name = excluded.category_name`,
+      )
+      .bind(
+        name,
+        review.title,
+        review.description,
+        review.detail,
+        review.canonicalUrl,
+        review.imageUrl,
+        review.imageUrl,
+        categoryName,
+        categoryName,
+      ),
+    database
+      .prepare(
+        `UPDATE crawler_candidate
+        SET canonical_url = ?, category_name = ?, description = ?, detail = ?, error_message = NULL,
+            image_url = ?, locked_at = NULL, next_retry_at = NULL, worker_lease_hash = NULL,
+            worker_lease_expires_at = NULL, status = 'published', title = ?, updated_at = ${NOW}
+        WHERE id = ? AND status = ?`,
+      )
+      .bind(
+        review.canonicalUrl,
+        categoryName,
+        review.description,
+        review.detail,
+        review.imageUrl,
+        review.title,
+        candidate.id,
+        requiredStatus,
+      ),
+  ];
+  if (candidate.source === 'submission' && candidate.source_item_id) {
+    statements.push(database.prepare('UPDATE submit SET status = 1 WHERE id = ?').bind(candidate.source_item_id));
+  }
+  const results = await database.batch(statements);
+  if (!results[1].success || Number(results[1].meta.changes || 0) !== 1) throw new Error('candidate_not_publishable');
+  return { categoryName, name, status: 'published' as const };
+}
+
+export default function createCrawlerStore(database: D1DatabaseClient): CrawlerStore {
   return {
     async claimCandidates(limit) {
-      return sql<CrawlCandidate[]>`
-        with picked as (
-          select id
-          from crawler.candidate
-          where status = 'pending'
-             or (status = 'retry' and coalesce(next_retry_at, now()) <= now())
-             or (
-               status = 'processing' and (
-                 (worker_lease_expires_at is not null and worker_lease_expires_at < now())
-                 or (worker_lease_expires_at is null and locked_at < now() - interval '15 minutes')
-               )
-             )
-          order by discovered_at asc
-          limit ${Math.max(1, Math.min(limit, 20))}
-          for update skip locked
-        )
-        update crawler.candidate as candidate
-        set status = 'processing', locked_at = now(),
-            attempt_count = candidate.attempt_count + 1,
-            worker_lease_hash = null, worker_lease_expires_at = null,
-            updated_at = now(), error_message = null
-        from picked
-        where candidate.id = picked.id
-        returning candidate.*
-      `;
+      const safeLimit = Math.max(1, Math.min(limit, 20));
+      const { results: rows } = await database
+        .prepare(`SELECT id FROM crawler_candidate WHERE ${CLAIMABLE} ORDER BY discovered_at ASC LIMIT ?`)
+        .bind(safeLimit)
+        .all<{ id: number }>();
+      const candidates = await Promise.all(
+        rows.map((row) =>
+          database
+            .prepare(
+              `UPDATE crawler_candidate
+              SET status = 'processing', locked_at = ${NOW}, attempt_count = attempt_count + 1,
+                  worker_lease_hash = NULL, worker_lease_expires_at = NULL,
+                  updated_at = ${NOW}, error_message = NULL
+              WHERE id = ? AND ${CLAIMABLE} RETURNING *`,
+            )
+            .bind(row.id)
+            .first<CrawlCandidate>(),
+        ),
+      );
+      return candidates.filter((candidate): candidate is CrawlCandidate => Boolean(candidate));
     },
 
     async getReviewCandidateDetail(id) {
-      const [candidate] = await sql<Array<{ detail: string | null }>>`
-        select detail from crawler.candidate
-        where id = ${id} and status = 'review'
-      `;
-      return candidate || null;
+      return database
+        .prepare("SELECT detail FROM crawler_candidate WHERE id = ? AND status = 'review'")
+        .bind(id)
+        .first<{ detail: string | null }>();
     },
 
     async listCategories() {
-      return sql<Array<{ name: string; title: string | null }>>`
-        select name, title from navigation_category where del_flag = 0
-      `;
+      const { results } = await database
+        .prepare('SELECT name, title FROM navigation_category WHERE del_flag = 0')
+        .all<{ name: string; title: string | null }>();
+      return results;
     },
 
     async listPendingSubmissions() {
-      return sql<Array<{ id: number; url: string | null }>>`
-        select id, url from submit
-        where status = 0
-        order by is_feature desc, created_at asc
-        limit 50
-      `;
+      const { results } = await database
+        .prepare(
+          `SELECT id, url FROM submit WHERE status = 0
+          ORDER BY is_feature DESC, created_at ASC LIMIT 50`,
+        )
+        .all<{ id: number; url: string | null }>();
+      return results;
     },
 
     async listReviewCandidates(offset, limit) {
       const safeOffset = Math.max(0, offset);
       const safeLimit = Math.max(1, Math.min(limit, 50));
-      const [items, countRows] = await Promise.all([
-        sql<ReviewQueueCandidate[]>`
-          select id, canonical_url, domain, source, source_url, title, description,
-                 image_url, category_name, updated_at, detail is not null as has_detail
-          from crawler.candidate
-          where status = 'review'
-          order by updated_at asc, id asc
-          offset ${safeOffset}
-          limit ${safeLimit}
-        `,
-        sql<Array<{ count: number }>>`
-          select count(*)::integer as count from crawler.candidate where status = 'review'
-        `,
+      const [itemsResult, countResult] = await database.batch([
+        database
+          .prepare(
+            `SELECT id, canonical_url, domain, source, source_url, title, description,
+              image_url, category_name, updated_at, detail IS NOT NULL AS has_detail
+            FROM crawler_candidate WHERE status = 'review'
+            ORDER BY updated_at ASC, id ASC LIMIT ? OFFSET ?`,
+          )
+          .bind(safeLimit, safeOffset),
+        database.prepare("SELECT COUNT(*) AS count FROM crawler_candidate WHERE status = 'review'"),
       ]);
-      return { items, total: countRows[0]?.count || 0 };
+      return {
+        items: itemsResult.results as unknown as ReviewQueueCandidate[],
+        total: Number((countResult.results[0] as { count?: number } | undefined)?.count || 0),
+      };
     },
 
     async markCandidateFailed(candidate, message) {
       const retry = candidate.attempt_count < 3;
       const status = retry ? 'retry' : 'failed';
-      const nextRetryAt = retry ? new Date(Date.now() + 2 ** candidate.attempt_count * 15 * 60 * 1000) : null;
-      await sql`
-        update crawler.candidate
-        set error_message = ${message}, locked_at = null, next_retry_at = ${nextRetryAt},
-            status = ${status}, updated_at = now()
-        where id = ${candidate.id}
-      `;
+      const nextRetryAt = retry
+        ? new Date(Date.now() + 2 ** candidate.attempt_count * 15 * 60 * 1000).toISOString()
+        : null;
+      await database
+        .prepare(
+          `UPDATE crawler_candidate
+          SET error_message = ?, locked_at = NULL, next_retry_at = ?, status = ?, updated_at = ${NOW}
+          WHERE id = ?`,
+        )
+        .bind(message, nextRetryAt, status, candidate.id)
+        .run();
       return status;
     },
 
     async publishCandidate(id, review) {
-      return sql.begin(async (transaction) => {
-        const [candidate] = await transaction<CrawlCandidate[]>`
-          select * from crawler.candidate where id = ${id} and status = 'processing' for update
-        `;
-        if (!candidate) throw new Error('candidate_not_publishable');
-        const categoryName = review.categoryName || 'other';
-        const [category] = await transaction<Array<{ name: string }>>`
-          select name from navigation_category where name = ${categoryName} and del_flag = 0
-        `;
-        if (!category) throw new Error('invalid_category');
-        const baseName = candidate.domain
-          .replace(/^www\./, '')
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '');
-        const proposedName = `${baseName}-${candidate.id}`;
-        const [published] = await transaction<Array<{ name: string }>>`
-          insert into web_navigation (
-            name, title, content, detail, url, image_url, thumbnail_url,
-            collection_time, tag_name, category_name
-          ) values (
-            ${proposedName}, ${review.title}, ${review.description}, ${review.detail},
-            ${review.canonicalUrl}, ${review.imageUrl}, ${review.imageUrl},
-            now(), ${categoryName}, ${categoryName}
-          )
-          on conflict (url) where url is not null do update set
-            title = excluded.title, content = excluded.content, detail = excluded.detail,
-            image_url = excluded.image_url, thumbnail_url = excluded.thumbnail_url,
-            collection_time = excluded.collection_time, tag_name = excluded.tag_name,
-            category_name = excluded.category_name
-          returning name
-        `;
-        await transaction`
-          update crawler.candidate
-          set canonical_url = ${review.canonicalUrl}, category_name = ${categoryName},
-              description = ${review.description}, detail = ${review.detail}, error_message = null,
-              image_url = ${review.imageUrl}, locked_at = null, next_retry_at = null,
-              worker_lease_hash = null, worker_lease_expires_at = null,
-              status = 'published', title = ${review.title}, updated_at = now()
-          where id = ${id}
-        `;
-        if (candidate.source === 'submission' && candidate.source_item_id) {
-          await transaction`update submit set status = 1 where id = ${candidate.source_item_id}`;
-        }
-        return { categoryName, name: published.name, status: 'published' as const };
-      });
+      const candidate = await database
+        .prepare("SELECT * FROM crawler_candidate WHERE id = ? AND status = 'processing'")
+        .bind(id)
+        .first<CrawlCandidate>();
+      if (!candidate) throw new Error('candidate_not_publishable');
+      return publish(database, candidate, review, 'processing');
     },
 
     async reviewCandidate(id, action, categoryOverride) {
-      return sql.begin(async (transaction) => {
-        const [candidate] = await transaction<CrawlCandidate[]>`
-          select * from crawler.candidate where id = ${id} and status = 'review' for update
-        `;
-        if (!candidate) throw new Error('candidate_not_reviewable');
-        if (action === 'rewrite') {
-          await transaction`
-            update crawler.candidate
-            set status = 'pending', attempt_count = 0, error_message = null,
-                locked_at = null, next_retry_at = null, worker_lease_hash = null,
-                worker_lease_expires_at = null, updated_at = now()
-            where id = ${id}
-          `;
-          return { status: 'pending' as const };
-        }
-        if (action === 'reject') {
-          await transaction`
-            update crawler.candidate
-            set status = 'rejected', worker_lease_hash = null, worker_lease_expires_at = null, updated_at = now()
-            where id = ${id}
-          `;
-          if (candidate.source === 'submission' && candidate.source_item_id) {
-            await transaction`update submit set status = 2 where id = ${candidate.source_item_id}`;
-          }
-          return { status: 'rejected' as const };
-        }
-        if (!candidate.title || !candidate.description || !candidate.detail) {
-          throw new Error('candidate_content_incomplete');
-        }
-        const categoryName = categoryOverride || candidate.category_name || 'other';
-        const [category] = await transaction<Array<{ name: string }>>`
-          select name from navigation_category
-          where name = ${categoryName} and del_flag = 0
-        `;
-        if (!category) throw new Error('invalid_category');
-        const baseName = candidate.domain
-          .replace(/^www\./, '')
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '');
-        const proposedName = `${baseName}-${candidate.id}`;
-        const [published] = await transaction<Array<{ name: string }>>`
-          insert into web_navigation (
-            name, title, content, detail, url, image_url, thumbnail_url,
-            collection_time, tag_name, category_name
-          ) values (
-            ${proposedName}, ${candidate.title}, ${candidate.description}, ${candidate.detail},
-            ${candidate.canonical_url}, ${candidate.image_url}, ${candidate.image_url},
-            now(), ${categoryName}, ${categoryName}
+      const candidate = await database
+        .prepare("SELECT * FROM crawler_candidate WHERE id = ? AND status = 'review'")
+        .bind(id)
+        .first<CrawlCandidate>();
+      if (!candidate) throw new Error('candidate_not_reviewable');
+      if (action === 'rewrite') {
+        await database
+          .prepare(
+            `UPDATE crawler_candidate SET status = 'pending', attempt_count = 0, error_message = NULL,
+            locked_at = NULL, next_retry_at = NULL, worker_lease_hash = NULL,
+            worker_lease_expires_at = NULL, updated_at = ${NOW} WHERE id = ? AND status = 'review'`,
           )
-          on conflict (url) where url is not null do update set
-            title = excluded.title, content = excluded.content, detail = excluded.detail,
-            image_url = excluded.image_url, thumbnail_url = excluded.thumbnail_url,
-            collection_time = excluded.collection_time, tag_name = excluded.tag_name,
-            category_name = excluded.category_name
-          returning name
-        `;
-        await transaction`
-          update crawler.candidate
-          set status = 'published', worker_lease_hash = null, worker_lease_expires_at = null, updated_at = now()
-          where id = ${id}
-        `;
+          .bind(id)
+          .run();
+        return { status: 'pending' as const };
+      }
+      if (action === 'reject') {
+        const statements = [
+          database
+            .prepare(
+              `UPDATE crawler_candidate SET status = 'rejected', worker_lease_hash = NULL,
+              worker_lease_expires_at = NULL, updated_at = ${NOW} WHERE id = ? AND status = 'review'`,
+            )
+            .bind(id),
+        ];
         if (candidate.source === 'submission' && candidate.source_item_id) {
-          await transaction`update submit set status = 1 where id = ${candidate.source_item_id}`;
+          statements.push(database.prepare('UPDATE submit SET status = 2 WHERE id = ?').bind(candidate.source_item_id));
         }
-        return { categoryName, name: published.name, status: 'published' as const };
-      });
+        await database.batch(statements);
+        return { status: 'rejected' as const };
+      }
+      if (!candidate.title || !candidate.description || !candidate.detail) {
+        throw new Error('candidate_content_incomplete');
+      }
+      return publish(
+        database,
+        candidate,
+        {
+          canonicalUrl: candidate.canonical_url,
+          categoryName: categoryOverride || candidate.category_name,
+          description: candidate.description,
+          detail: candidate.detail,
+          imageUrl: candidate.image_url,
+          title: candidate.title,
+        },
+        'review',
+      );
     },
 
     async upsertCandidates(rows) {
       if (!rows.length) return;
-      const values = sql(rows, 'canonical_url', 'domain', 'source', 'source_item_id', 'source_url', 'url');
-      await sql`
-        insert into crawler.candidate ${values}
-        on conflict (canonical_url) do nothing
-      `;
+      await database.batch(
+        rows.map((row) =>
+          database
+            .prepare(
+              `INSERT INTO crawler_candidate
+              (canonical_url, domain, source, source_item_id, source_url, url)
+              VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(canonical_url) DO NOTHING`,
+            )
+            .bind(row.canonical_url, row.domain, row.source, row.source_item_id, row.source_url, row.url),
+        ),
+      );
     },
   };
 }

@@ -1,5 +1,5 @@
 import { type MetadataRoute } from 'next';
-import { createClient } from '@/db/supabase/client';
+import { countTools, listCategories, listSitemapTools } from '@/db/queries';
 import { locales } from '@/i18n';
 
 import { InfoPageSize } from '@/lib/constants';
@@ -14,19 +14,14 @@ const DATABASE_PAGE_SIZE = 1000;
 type Route = Omit<MetadataRoute.Sitemap[number], 'url'> & { path: string };
 type SitemapTool = { name: string; collection_time: string };
 
-async function fetchAllTools(client: ReturnType<typeof createClient>, offset = 0): Promise<SitemapTool[]> {
-  const { data, error } = await client
-    .from('web_navigation')
-    .select('name, collection_time')
-    .order('id')
-    .range(offset, offset + DATABASE_PAGE_SIZE - 1);
-  if (error || !data?.length) return [];
-  if (data.length < DATABASE_PAGE_SIZE) return data;
-  return [...data, ...(await fetchAllTools(client, offset + DATABASE_PAGE_SIZE))];
+async function fetchAllTools(offset = 0): Promise<SitemapTool[]> {
+  const data = await listSitemapTools(offset, DATABASE_PAGE_SIZE);
+  if (!data.length) return [];
+  if (data.length < DATABASE_PAGE_SIZE) return data as SitemapTool[];
+  return [...(data as SitemapTool[]), ...(await fetchAllTools(offset + DATABASE_PAGE_SIZE))];
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = createClient();
   const now = new Date();
   const routes: Route[] = [
     { path: '', lastModified: now, changeFrequency: 'daily', priority: 1 },
@@ -42,10 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
-  const [{ data: categories }, { count: toolCount }] = await Promise.all([
-    supabase.from('navigation_category').select('name'),
-    supabase.from('web_navigation').select('id', { count: 'exact', head: true }),
-  ]);
+  const [categories, toolCount] = await Promise.all([listCategories(), countTools()]);
 
   const explorePages = Math.ceil((toolCount || 0) / EXPLORE_PAGE_SIZE);
   for (let page = 2; page <= explorePages; page += 1) {
@@ -55,11 +47,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await Promise.all(
     (categories || []).map(async (category) => {
       routes.push({ path: `/category/${category.name}`, lastModified: now, changeFrequency: 'daily', priority: 0.8 });
-      const { count } = await supabase
-        .from('web_navigation')
-        .select('id', { count: 'exact', head: true })
-        .eq('category_name', category.name);
-      const pageCount = Math.ceil((count || 0) / InfoPageSize);
+      const count = await countTools(category.name);
+      const pageCount = Math.ceil(count / InfoPageSize);
       for (let page = 2; page <= pageCount; page += 1) {
         routes.push({
           path: `/category/${category.name}/page/${page}`,
@@ -71,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   );
 
-  const tools = await fetchAllTools(supabase);
+  const tools = await fetchAllTools();
   tools.forEach((tool) =>
     routes.push({
       path: `/ai/${encodeURIComponent(tool.name)}`,

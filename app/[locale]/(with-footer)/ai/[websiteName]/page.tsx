@@ -2,7 +2,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Script from 'next/script';
-import { createClient } from '@/db/supabase/client';
+import { getToolByName, listTools } from '@/db/queries';
 import { CircleArrowRight } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
@@ -21,9 +21,8 @@ export async function generateMetadata({
 }: {
   params: { locale: string; websiteName: string };
 }): Promise<Metadata> {
-  const supabase = createClient();
   const t = await getTranslations({ locale, namespace: 'Metadata.ai' });
-  const { data } = await supabase.from('web_navigation').select().eq('name', websiteName).maybeSingle();
+  const data = await getToolByName(websiteName);
 
   if (!data) notFound();
 
@@ -54,18 +53,16 @@ export default async function Page({
 }: {
   params: { locale: string; websiteName: string };
 }) {
-  const supabase = createClient();
   const t = await getTranslations({ locale, namespace: 'Startup.detail' });
-  const { data } = await supabase.from('web_navigation').select().eq('name', websiteName).maybeSingle();
+  const data = await getToolByName(websiteName);
   if (!data) notFound();
 
-  const { data: similarTools } = await supabase
-    .from('web_navigation')
-    .select('*')
-    .eq('category_name', data.category_name)
-    .neq('id', data.id)
-    .order('collection_time', { ascending: false })
-    .limit(4);
+  const similarTools = await listTools({
+    category: data.category_name,
+    excludeId: data.id,
+    limit: 4,
+    order: 'collection_time_desc',
+  });
   const copy = detailCopy[getIntentLocale(locale)];
   const tags =
     data.tag_name

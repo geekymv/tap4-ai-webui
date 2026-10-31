@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-props-no-spreading */
-import { WebNavigation } from '@/db/supabase/types';
+import { WebNavigation } from '@/db/types';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { getIntentLocale, intentPages } from '@/lib/intent-pages';

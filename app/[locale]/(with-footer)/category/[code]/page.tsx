@@ -2,7 +2,7 @@
 
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/db/supabase/client';
+import { countTools, getCategory, listTools } from '@/db/queries';
 
 import { InfoPageSize, RevalidateOneHour } from '@/lib/constants';
 import { languageAlternates } from '@/lib/seo';
@@ -12,37 +12,28 @@ import Content from './Content';
 export const revalidate = RevalidateOneHour * 6;
 
 export async function generateMetadata({ params }: { params: { code: string; locale: string } }): Promise<Metadata> {
-  const supabase = createClient();
-  const { data: categoryList } = await supabase.from('navigation_category').select().eq('name', params.code);
+  const category = await getCategory(params.code);
 
-  if (!categoryList || !categoryList[0]) {
-    notFound();
-  }
+  if (!category) notFound();
 
   return {
-    title: categoryList[0].title,
+    title: category.title,
     alternates: languageAlternates(params.locale, `/category/${params.code}`),
   };
 }
 
 export default async function Page({ params }: { params: { code: string } }) {
-  const supabase = createClient();
-  const [{ data: categoryList }, { data: navigationList, count }] = await Promise.all([
-    supabase.from('navigation_category').select().eq('name', params.code),
-    supabase
-      .from('web_navigation')
-      .select('*', { count: 'exact' })
-      .eq('category_name', params.code)
-      .range(0, InfoPageSize - 1),
+  const [category, navigationList, count] = await Promise.all([
+    getCategory(params.code),
+    listTools({ category: params.code, limit: InfoPageSize }),
+    countTools(params.code),
   ]);
 
-  if (!categoryList || !categoryList[0]) {
-    notFound();
-  }
+  if (!category) notFound();
 
   return (
     <Content
-      headerTitle={categoryList[0]!.title || params.code}
+      headerTitle={category.title || params.code}
       navigationList={navigationList!}
       currentPage={1}
       total={count!}

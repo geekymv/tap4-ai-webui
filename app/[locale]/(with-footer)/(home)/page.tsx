@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { createClient } from '@/db/supabase/client';
+import { listCategories, listTools } from '@/db/queries';
 import { CircleChevronRight } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
@@ -34,11 +34,10 @@ export async function generateMetadata({ params: { locale } }: { params: { local
 export const revalidate = RevalidateOneHour;
 
 export default async function Page() {
-  const supabase = createClient();
   const t = await getTranslations('Home');
-  const [{ data: categoryList }, { data: navigationList }] = await Promise.all([
-    supabase.from('navigation_category').select(),
-    supabase.from('web_navigation').select().order('id', { ascending: false }).limit(100),
+  const [categoryList, navigationList] = await Promise.all([
+    listCategories(),
+    listTools({ limit: 100, order: 'id_desc' }),
   ]);
 
   return (

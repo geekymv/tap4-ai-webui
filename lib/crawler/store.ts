@@ -1,10 +1,10 @@
-import { Sql } from 'postgres';
+import 'server-only';
 
-import getDatabase from '../../db/postgres';
+import getDatabase, { D1DatabaseClient } from '../../db/d1';
 import createCrawlerStore, { CrawlerStore } from './store-factory';
 
 export * from './store-factory';
 
-export default function getCrawlerStore(sql: Sql = getDatabase()): CrawlerStore {
-  return createCrawlerStore(sql);
+export default function getCrawlerStore(database: D1DatabaseClient = getDatabase()): CrawlerStore {
+  return createCrawlerStore(database);
 }

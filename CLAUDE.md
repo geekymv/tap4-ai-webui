@@ -67,9 +67,8 @@ lib/                  # Utilities and constants
 ├── utils.ts          # Utility functions (cn for className merging)
 └── utils/            # Additional utilities
 
-db/                   # Database configuration
-├── supabase/         # Supabase client and SQL scripts
-└── [sql scripts]     # Database initialization scripts
+db/                   # D1 binding, queries, and row types
+migrations/           # Wrangler D1 migrations
 
 messages/             # Internationalization JSON files (9 languages)
 ```
@@ -78,7 +77,8 @@ messages/             # Internationalization JSON files (9 languages)
 
 - **Framework**: Next.js 14 with App Router (React Server Components)
 - **UI**: shadcn/ui + Tailwind CSS
-- **Database**: Supabase (PostgreSQL)
+- **Runtime**: OpenNext on Cloudflare Workers
+- **Database**: Cloudflare D1
 - **i18n**: next-intl with middleware-based routing
 - **Forms**: react-hook-form + zod validation
 - **Notifications**: sonner (toasts)
@@ -94,10 +94,11 @@ messages/             # Internationalization JSON files (9 languages)
 
 ### Database Integration
 
-- **Supabase**: Serverless PostgreSQL with Row Level Security
-- **Tables**: `web_navigation` (AI tools), `category` (categories), `submit` (user submissions)
-- **SQL Scripts**: Located in `/db/` for database initialization
-- **Client**: Configured in `/db/supabase/`
+- **Cloudflare D1**: SQLite-compatible serverless database bound as `DB`
+- **Tables**: `web_navigation` (AI tools), `navigation_category` (categories), `submit` (user submissions),
+  `crawler_candidate`
+- **Migrations**: Located in `/migrations/`
+- **Queries**: Configured in `/db/d1.ts` and `/db/queries.ts`
 
 ## Environment Variables
 
@@ -107,10 +108,7 @@ Required environment variables (see `.env.example`):
 # Site configuration
 NEXT_PUBLIC_SITE_URL="https://your-domain.com"
 
-# Supabase database
-NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
-DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
+# Cloudflare D1 is provided by the DB binding in wrangler.jsonc
 
 # Built-in crawler and discovery
 CRON_SECRET="cron-auth-key"
@@ -123,7 +121,7 @@ CRAWL_REQUEST_TIMEOUT_MS="7000"
 
 # Authentication keys
 CRON_AUTH_KEY="cron-auth-key"
-SUBMIT_AUTH_KEY="submit-auth-key"
+CRAWLER_WORKER_KEY="crawler-worker-key"
 
 # Analytics and contact
 GOOGLE_TRACKING_ID="G-XXXXXXX"
@@ -158,10 +156,10 @@ CONTACT_US_EMAIL="contact@email.com"
 
 ### Common Database Tasks
 
-1. **Initialize database**: Run SQL scripts in `/db/` on Supabase
+1. **Initialize database**: Run `pnpm db:migrate:local` (or the reviewed remote equivalent)
 2. **Add AI tools**: Review built-in crawler candidates or manually insert into `web_navigation`
-3. **Update content**: Modify `web_navigation` table with proper markdown formatting
-4. **Manage categories**: Use `category` table for tool categorization
+3. **Update content**: Modify `web_navigation` with proper Markdown formatting
+4. **Manage categories**: Use `navigation_category` for tool categorization
 
 ### Built-in crawler
 
@@ -171,11 +169,11 @@ CONTACT_US_EMAIL="contact@email.com"
 
 ## Deployment
 
-### Vercel Deployment
+### Cloudflare deployment
 
-- Ready for Vercel deployment with environment variables
-- Cron jobs: Configured for automatic content updates
-- Plans limited to one daily cron need a reduced schedule or manual `/api/cron/process` calls
+- Build with `pnpm build:cloudflare` and deploy with `pnpm deploy:cloudflare`
+- D1 and R2 bindings plus the daily cron are configured in `wrangler.jsonc`
+- Follow `docs/cloudflare-d1-migration.md` before any production cutover
 
 ### Build Considerations
 
@@ -187,8 +185,8 @@ CONTACT_US_EMAIL="contact@email.com"
 
 1. **Node Version**: Must use Node >=20.0.0 (check `.nvmrc`)
 2. **Package Manager**: Use pnpm exclusively (yarn/npm disabled in `package.json`)
-3. **Database**: Supabase required for full functionality
-4. **Crawler**: Run `db/postgres/create_crawler.sql`; configure `DATABASE_URL` plus Cron/review keys before enabling Cron
+3. **Database**: Cloudflare D1 binding `DB` is required
+4. **Crawler**: Apply D1 migrations and configure Cron/review keys before enabling Cron
 5. **Internationalization**: All routes are locale-prefixed, middleware handles redirects
 6. **SEO**: Dynamic sitemaps, robots.txt, and meta tags are implemented
 
@@ -199,4 +197,4 @@ CONTACT_US_EMAIL="contact@email.com"
 - **Tailwind config**: `tailwind.config.ts`
 - **shadcn/ui config**: `components.json`
 - **TypeScript config**: `tsconfig.json`
-- **Database scripts**: `/db/supabase/` directory
+- **Database migration**: `migrations/0001_initial.sql` and `docs/cloudflare-d1-migration.md`

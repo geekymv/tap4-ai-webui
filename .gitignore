@@ -33,8 +33,10 @@ yarn-error.log*
 .env*.local
 .env
 
-# vercel
+# deployment build and local state
 .vercel
+.open-next
+.wrangler
 
 # typescript
 *.tsbuildinfo

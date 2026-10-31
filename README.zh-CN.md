@@ -12,7 +12,7 @@
 
 ## v2.0.0版本更新说明
 
-- AI站点数据采用supabase数据库存储
+- AI 站点数据采用 Cloudflare D1 存储
 - 对接Tap4 AI爬虫项目，支持提交和收录全自动
 - 支持简易的分类和搜索
 
@@ -29,12 +29,17 @@
 
 ## 技术栈说明
 
-- 使用 NEXT 14 和 app 路由（react服务器组件）
-- Supabase serverless 数据库
+- 使用 Next.js 14 和 app 路由（React 服务器组件）
+- OpenNext Cloudflare Workers 与 Cloudflare D1
 - 国际化
 - SEO友好（支持i18n）
 - 动态 sitemap.xml（支持i18n）
 - tailwind CSS
+
+## Cloudflare 部署及数据库迁移
+
+资源创建、Supabase 只读导出、D1 导入、校验、切流及回滚步骤见
+[`docs/cloudflare-d1-migration.md`](docs/cloudflare-d1-migration.md)。仓库不会自动操作生产数据。
 
 ## 前端页面截图
 

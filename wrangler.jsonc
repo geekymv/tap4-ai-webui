@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "getaitools",
+  "main": "worker.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "getaitools-cache",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "getaitools",
+      "database_id": "REPLACE_WITH_PRODUCTION_D1_DATABASE_ID",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "triggers": {
+    "crons": ["0 0 * * *"],
+  },
+}

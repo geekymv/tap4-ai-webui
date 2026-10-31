@@ -24,7 +24,7 @@ describe('crawler worker claim API', () => {
     mocks.verify.mockReset();
     mocks.verify.mockReturnValue(true);
     mocks.listCategories.mockResolvedValue([{ name: 'writing', title: 'AI Writing' }]);
-    // BIGSERIAL values are returned as strings by the postgres client.
+    // API input remains coercible for compatibility with legacy database exports.
     mocks.claim.mockResolvedValue([
       { attempt_count: 1, id: '1', leaseToken: 'lease-token', url: 'https://example.com/' },
     ]);

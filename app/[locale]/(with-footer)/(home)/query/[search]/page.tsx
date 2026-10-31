@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
 import dynamic from 'next/dynamic';
-import { createClient } from '@/db/supabase/client';
+import { listCategories, listTools } from '@/db/queries';
 import { getTranslations } from 'next-intl/server';
 
 import { RevalidateOneHour } from '@/lib/constants';
@@ -31,14 +31,11 @@ export async function generateMetadata({ params: { locale } }: { params: { local
 export const revalidate = RevalidateOneHour / 2;
 
 export default async function Page({ params }: { params: { search?: string } }) {
-  const supabase = createClient();
   const t = await getTranslations('Home');
-  const { data: categoryList } = await supabase.from('navigation_category').select();
-  const { data: dataList } = await supabase
-    .from('web_navigation')
-    .select()
-    .ilike('detail', `%${decodeURI(params?.search || '')}%`)
-    .order('id', { ascending: false });
+  const [categoryList, dataList] = await Promise.all([
+    listCategories(),
+    listTools({ searchDetail: decodeURI(params?.search || ''), order: 'id_desc' }),
+  ]);
 
   return (
     <Suspense fallback={<Loading />}>

@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Script from 'next/script';
-import { createClient } from '@/db/supabase/client';
+import { listTools } from '@/db/queries';
 
 import { getIntentLocale, getIntentPage, intentCopy, intentPages, interpolate } from '@/lib/intent-pages';
 import { languageAlternates, localizedUrl, safeJsonLd } from '@/lib/seo';
@@ -41,13 +41,7 @@ export default async function IntentPage({ params }: { params: { locale: string;
   const copy = intentCopy[locale];
   const name = page.labels[locale];
   const title = interpolate(copy.title, name);
-  const supabase = createClient();
-  const { data: tools } = await supabase
-    .from('web_navigation')
-    .select('*')
-    .eq('category_name', page.category)
-    .order('collection_time', { ascending: false })
-    .limit(12);
+  const tools = await listTools({ category: page.category, limit: 12, order: 'collection_time_desc' });
   const path = `/best/${page.slug}`;
   const jsonLd = {
     '@context': 'https://schema.org',

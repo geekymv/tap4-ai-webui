@@ -1,7 +1,7 @@
 /* eslint-disable react/jsx-no-target-blank */
 
 import Link from 'next/link';
-import { WebNavigation } from '@/db/supabase/types';
+import { WebNavigation } from '@/db/types';
 import { CircleArrowRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
