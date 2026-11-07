@@ -76,6 +76,10 @@ export default function Footer() {
       title: 'NPE4J',
       href: 'https://npe4j.com/',
     },
+    {
+      title: 'Bicep Heart',
+      href: 'https://heartbicep.com',
+    },
 
     {
       title: t('tap4'),
